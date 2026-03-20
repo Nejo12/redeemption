@@ -8,6 +8,8 @@ import {
   PasswordResetRequestResponse,
   SignUpRequestBody,
   SignUpResponse,
+  SenderProfileResponse,
+  UpsertSenderProfileRequestBody,
   VerifyEmailRequestBody,
   VerifyEmailResponse,
 } from "@/lib/auth-contract";
@@ -108,5 +110,27 @@ export function getCurrentUser(accessToken: string): Promise<MeResponse> {
     headers: {
       Authorization: `Bearer ${accessToken}`,
     },
+  });
+}
+
+export function getSenderProfile(accessToken: string): Promise<SenderProfileResponse> {
+  return requestJson<SenderProfileResponse>("/sender-profile", {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+}
+
+export function upsertSenderProfile(
+  accessToken: string,
+  payload: UpsertSenderProfileRequestBody,
+): Promise<SenderProfileResponse> {
+  return requestJson<SenderProfileResponse>("/sender-profile", {
+    method: "PUT",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify(payload),
   });
 }

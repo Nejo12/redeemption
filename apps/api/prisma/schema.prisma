@@ -28,18 +28,20 @@ model User {
 }
 
 model SenderProfile {
-  id           String   @id @default(cuid())
-  userId       String   @unique
-  fullName     String?
-  addressLine1 String?
-  addressLine2 String?
-  city         String?
-  region       String?
-  postalCode   String?
-  countryCode  String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  fullName          String?
+  addressLine1      String?
+  addressLine2      String?
+  city              String?
+  region            String?
+  postalCode        String?
+  countryCode       String?
+  preferredLocale   String?
+  preferredCurrency String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model EmailVerificationToken {
