@@ -1,0 +1,37 @@
+{
+  "name": "project-one",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n web,api,worker -c blue,green,magenta \"npm -w web dev\" \"npm -w api dev\" \"npm -w worker dev\"",
+    "build": "npm -ws run build",
+    "lint": "npm -ws run lint",
+    "format": "prettier --write .",
+    "test": "npm -w web test",
+    "typecheck": "npm -ws run typecheck",
+    "prepare": "husky install"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Nejo12/Project-One.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Nejo12/Project-One/issues"
+  },
+  "homepage": "https://github.com/Nejo12/Project-One#readme",
+  "description": "",
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "husky": "^9.1.7",
+    "prettier": "^3.8.1",
+    "stylelint": "^17.5.0",
+    "stylelint-config-standard": "^40.0.0"
+  }
+}
