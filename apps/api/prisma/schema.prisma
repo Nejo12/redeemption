@@ -59,6 +59,25 @@ enum RenderPhotoFit {
   COVER
 }
 
+enum MomentEventType {
+  CONTACT_BIRTHDAY
+  ONE_OFF_DATE
+}
+
+enum MomentDeliveryPreference {
+  ARRIVE_BY
+  SHIP_ON
+}
+
+enum MomentApprovalMode {
+  ALWAYS_ASK
+}
+
+enum DraftStatus {
+  SCHEDULED
+  READY_FOR_REVIEW
+}
+
 model User {
   id                  String                   @id @default(cuid())
   email               String                   @unique
@@ -70,6 +89,8 @@ model User {
   updatedAt           DateTime                 @updatedAt
   addresses           Address[]
   contacts            Contact[]
+  drafts              Draft[]
+  momentRules         MomentRule[]
   profile             SenderProfile?
   renderPreviews      RenderPreview[]
   storedObjects       StoredObject[]
@@ -107,6 +128,8 @@ model Contact {
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
   addressLinks    ContactAddress[]
+  drafts          Draft[]
+  momentRules     MomentRule[]
   user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, lastName, firstName])
@@ -175,6 +198,8 @@ model Template {
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
   fields          TemplateField[]
+  drafts          Draft[]
+  momentRules     MomentRule[]
   renderPreviews  RenderPreview[]
 
   @@index([category, isActive, name])
@@ -208,6 +233,8 @@ model StoredObject {
   checksumSha256   String?
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
+  draftPhotos            Draft[]         @relation("DraftPhoto")
+  momentRulePhotos       MomentRule[]    @relation("MomentRulePhoto")
   renderPreviewArtifacts RenderPreview[] @relation("RenderPreviewArtifact")
   renderPreviewPhotos    RenderPreview[] @relation("RenderPreviewPhoto")
   user             User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
@@ -227,6 +254,7 @@ model RenderPreview {
   fieldValues      Json
   photoFit         RenderPhotoFit?
   createdAt        DateTime       @default(now())
+  drafts           Draft[]
   updatedAt        DateTime       @updatedAt
   artifactObject   StoredObject   @relation("RenderPreviewArtifact", fields: [artifactObjectId], references: [id], onDelete: Cascade)
   photoObject      StoredObject?  @relation("RenderPreviewPhoto", fields: [photoObjectId], references: [id], onDelete: SetNull)
@@ -235,6 +263,63 @@ model RenderPreview {
 
   @@index([userId, createdAt])
   @@index([templateId, createdAt])
+}
+
+model MomentRule {
+  id                 String                   @id @default(cuid())
+  userId             String
+  contactId          String
+  templateId         String
+  photoObjectId      String?
+  name               String
+  eventType          MomentEventType
+  oneOffDate         DateTime?
+  leadTimeDays       Int                      @default(7)
+  deliveryPreference MomentDeliveryPreference @default(ARRIVE_BY)
+  approvalMode       MomentApprovalMode       @default(ALWAYS_ASK)
+  messageTemplate    String
+  nextOccurrenceAt   DateTime?
+  nextDraftAt        DateTime?
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+  contact            Contact                  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  drafts             Draft[]
+  photoObject        StoredObject?            @relation("MomentRulePhoto", fields: [photoObjectId], references: [id], onDelete: SetNull)
+  template           Template                 @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  user               User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, nextDraftAt])
+  @@index([contactId, eventType])
+}
+
+model Draft {
+  id              String         @id @default(cuid())
+  userId          String
+  momentRuleId    String
+  contactId       String
+  templateId      String
+  photoObjectId   String?
+  renderPreviewId String?
+  status          DraftStatus    @default(SCHEDULED)
+  scheduledFor    DateTime
+  draftReadyAt    DateTime
+  occurrenceDate  DateTime
+  headline        String
+  message         String
+  fieldValues     Json
+  photoFit        RenderPhotoFit?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  contact         Contact        @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  momentRule      MomentRule     @relation(fields: [momentRuleId], references: [id], onDelete: Cascade)
+  photoObject     StoredObject?  @relation("DraftPhoto", fields: [photoObjectId], references: [id], onDelete: SetNull)
+  renderPreview   RenderPreview? @relation(fields: [renderPreviewId], references: [id], onDelete: SetNull)
+  template        Template       @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([momentRuleId, occurrenceDate])
+  @@index([userId, status, draftReadyAt])
+  @@index([contactId, scheduledFor])
 }
 
 model PasswordResetToken {

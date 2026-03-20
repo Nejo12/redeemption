@@ -1,7 +1,7 @@
 type AuthFieldProps = {
   label: string;
   name: string;
-  type?: "email" | "password" | "text";
+  type?: "date" | "email" | "number" | "password" | "text";
   value: string;
   placeholder?: string;
   autoComplete?: string;

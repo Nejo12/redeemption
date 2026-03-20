@@ -10,5 +10,6 @@ import { RenderingService } from './rendering.service';
   imports: [AuthModule, StorageModule, TemplatesModule],
   controllers: [RenderingController],
   providers: [RenderingRepository, RenderingService],
+  exports: [RenderingService],
 })
 export class RenderingModule {}

@@ -1,6 +1,34 @@
+import { useSyncExternalStore } from "react";
 import { StoredAuthSession } from "@/lib/auth-contract";
 
 const AUTH_SESSION_STORAGE_KEY = "project-one.auth.session";
+const authSessionListeners = new Set<() => void>();
+
+function notifyAuthSessionListeners() {
+  authSessionListeners.forEach((listener) => listener());
+}
+
+function subscribeToAuthSession(onStoreChange: () => void): () => void {
+  authSessionListeners.add(onStoreChange);
+
+  function handleStorage(event: StorageEvent) {
+    if (event.key === AUTH_SESSION_STORAGE_KEY) {
+      onStoreChange();
+    }
+  }
+
+  if (typeof window !== "undefined") {
+    window.addEventListener("storage", handleStorage);
+  }
+
+  return () => {
+    authSessionListeners.delete(onStoreChange);
+
+    if (typeof window !== "undefined") {
+      window.removeEventListener("storage", handleStorage);
+    }
+  };
+}
 
 export function readStoredAuthSession(): StoredAuthSession | null {
   if (typeof window === "undefined") {
@@ -26,6 +54,7 @@ export function writeStoredAuthSession(session: StoredAuthSession): void {
   }
 
   window.localStorage.setItem(AUTH_SESSION_STORAGE_KEY, JSON.stringify(session));
+  notifyAuthSessionListeners();
 }
 
 export function clearStoredAuthSession(): void {
@@ -34,4 +63,9 @@ export function clearStoredAuthSession(): void {
   }
 
   window.localStorage.removeItem(AUTH_SESSION_STORAGE_KEY);
+  notifyAuthSessionListeners();
+}
+
+export function useStoredAuthSession(): StoredAuthSession | null {
+  return useSyncExternalStore(subscribeToAuthSession, readStoredAuthSession, () => null);
 }
