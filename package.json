@@ -33,15 +33,15 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Nejo12/Project-One.git"
+    "url": "git+https://github.com/Nejo12/redeemption.git"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/Nejo12/Project-One/issues"
+    "url": "https://github.com/Nejo12/redeemption/issues"
   },
-  "homepage": "https://github.com/Nejo12/Project-One#readme",
+  "homepage": "https://github.com/Nejo12/redeemption#readme",
   "description": "",
   "engines": {
     "node": "^22.0.0 || >=24.0.0",

@@ -39,7 +39,7 @@ export default function DesignSystemDocsPage() {
             <div className="flex flex-col gap-3 sm:flex-row">
               <ActionLink href="/">Back to home</ActionLink>
               <ActionLink
-                href="https://github.com/Nejo12/Project-One/blob/main/docs/DESIGN_SYSTEM_FOUNDATION.md"
+                href="https://github.com/Nejo12/redeemption/blob/main/docs/DESIGN_SYSTEM_FOUNDATION.md"
                 target="_blank"
                 rel="noopener noreferrer"
                 variant="secondary"

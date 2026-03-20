@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
   - name: Contribution guide
-    url: https://github.com/Nejo12/Project-One/blob/main/CONTRIBUTING.md
+    url: https://github.com/Nejo12/redeemption/blob/main/CONTRIBUTING.md
     about: Review the branch, commit, and review workflow before opening work items.
   - name: MVP issue backlog
-    url: https://github.com/Nejo12/Project-One/blob/main/docs/GITHUB_ISSUES_MVP.md
+    url: https://github.com/Nejo12/redeemption/blob/main/docs/GITHUB_ISSUES_MVP.md
     about: Use the backlog document to align new issues with the existing product plan.
