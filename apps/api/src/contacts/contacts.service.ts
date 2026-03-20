@@ -1,5 +1,11 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
 import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { ContactAddressKind } from '@prisma/client';
+import {
+  ContactAddressView,
   ContactListResponse,
   ContactResponse,
   ContactView,
@@ -32,6 +38,11 @@ export class ContactsService {
     input: UpsertContactRequestBody,
   ): Promise<ContactResponse> {
     const params = this.toUpsertParams(userId, input);
+    await this.assertAssignedAddressesBelongToUser(
+      userId,
+      params.primaryAddressId,
+      params.alternateAddressIds,
+    );
     const contact = await this.contactsRepository.create(params);
     const warning = await this.buildDuplicateWarning(
       userId,
@@ -59,10 +70,17 @@ export class ContactsService {
       throw new NotFoundException('Contact not found.');
     }
 
+    const params = this.toUpsertParams(userId, input);
+    await this.assertAssignedAddressesBelongToUser(
+      userId,
+      params.primaryAddressId,
+      params.alternateAddressIds,
+    );
+
     const contact = await this.contactsRepository.update(
       userId,
       contactId,
-      this.toUpsertParams(userId, input),
+      params,
     );
     const warning = await this.buildDuplicateWarning(
       userId,
@@ -100,7 +118,43 @@ export class ContactsService {
         : null,
       timezone: input.timezone?.trim() || null,
       notes: input.notes?.trim() || null,
+      primaryAddressId: input.primaryAddressId?.trim() || null,
+      alternateAddressIds: [...new Set(input.alternateAddressIds ?? [])],
     };
+  }
+
+  private async assertAssignedAddressesBelongToUser(
+    userId: string,
+    primaryAddressId: string | null,
+    alternateAddressIds: string[],
+  ): Promise<void> {
+    const addressIds = [
+      ...(primaryAddressId ? [primaryAddressId] : []),
+      ...alternateAddressIds,
+    ];
+
+    if (addressIds.length === 0) {
+      return;
+    }
+
+    const distinctAddressIds = [...new Set(addressIds)];
+
+    if (primaryAddressId && alternateAddressIds.includes(primaryAddressId)) {
+      throw new BadRequestException(
+        'Primary and alternate addresses must be different.',
+      );
+    }
+
+    const ownedAddresses = await this.contactsRepository.findAddressesByIds(
+      userId,
+      distinctAddressIds,
+    );
+
+    if (ownedAddresses.length !== distinctAddressIds.length) {
+      throw new BadRequestException(
+        'Assigned addresses must belong to the authenticated user.',
+      );
+    }
   }
 
   private async buildDuplicateWarning(
@@ -128,6 +182,14 @@ export class ContactsService {
   }
 
   private toContactView(contact: ContactRecord): ContactView {
+    const primaryAddress =
+      contact.addressLinks.find(
+        (link) => link.kind === ContactAddressKind.PRIMARY,
+      )?.address ?? null;
+    const alternateAddresses = contact.addressLinks
+      .filter((link) => link.kind === ContactAddressKind.ALTERNATE)
+      .map((link) => link.address);
+
     return {
       id: contact.id,
       firstName: contact.firstName,
@@ -136,8 +198,29 @@ export class ContactsService {
       birthday: contact.birthday?.toISOString().slice(0, 10) ?? null,
       timezone: contact.timezone,
       notes: contact.notes,
+      primaryAddress: primaryAddress
+        ? this.toContactAddressView(primaryAddress)
+        : null,
+      alternateAddresses: alternateAddresses.map((address) =>
+        this.toContactAddressView(address),
+      ),
       createdAt: contact.createdAt.toISOString(),
       updatedAt: contact.updatedAt.toISOString(),
+    };
+  }
+
+  private toContactAddressView(
+    address: ContactRecord['addressLinks'][number]['address'],
+  ): ContactAddressView {
+    return {
+      id: address.id,
+      line1: address.line1,
+      line2: address.line2,
+      city: address.city,
+      region: address.region,
+      postalCode: address.postalCode,
+      countryCode: address.countryCode,
+      validationStatus: address.validationStatus,
     };
   }
 }

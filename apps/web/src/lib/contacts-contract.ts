@@ -1,4 +1,16 @@
 export type RelationshipTagValue = "FAMILY" | "FRIEND" | "PARTNER" | "WORK";
+export type AddressValidationStatusValue = "VALID" | "INVALID";
+
+export interface ContactAddressView {
+  id: string;
+  line1: string;
+  line2: string | null;
+  city: string;
+  region: string | null;
+  postalCode: string;
+  countryCode: string;
+  validationStatus: AddressValidationStatusValue;
+}
 
 export interface ContactView {
   id: string;
@@ -8,6 +20,8 @@ export interface ContactView {
   birthday: string | null;
   timezone: string | null;
   notes: string | null;
+  primaryAddress: ContactAddressView | null;
+  alternateAddresses: ContactAddressView[];
   createdAt: string;
   updatedAt: string;
 }
@@ -33,6 +47,8 @@ export interface UpsertContactRequestBody {
   birthday?: string;
   timezone?: string;
   notes?: string;
+  primaryAddressId?: string;
+  alternateAddressIds?: string[];
 }
 
 export const relationshipTagOptions: Array<{

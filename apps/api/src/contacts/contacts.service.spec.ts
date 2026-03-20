@@ -1,9 +1,36 @@
-import { RelationshipTag } from '@prisma/client';
+import {
+  AddressValidationStatus,
+  ContactAddressKind,
+  RelationshipTag,
+} from '@prisma/client';
 import { ContactsRepository } from './contacts.repository';
 import { ContactsService } from './contacts.service';
 import { ContactRecord } from './contacts.types';
 
 class ContactsRepositoryFake {
+  addressBook = [
+    {
+      id: 'address_1',
+      line1: '12 Orchard Row',
+      line2: null,
+      city: 'Berlin',
+      region: 'Berlin',
+      postalCode: '10115',
+      countryCode: 'DE',
+      validationStatus: AddressValidationStatus.VALID,
+    },
+    {
+      id: 'address_2',
+      line1: '48 Market Street',
+      line2: 'Apartment 6B',
+      city: 'Dublin',
+      region: 'Leinster',
+      postalCode: 'D02',
+      countryCode: 'IE',
+      validationStatus: AddressValidationStatus.VALID,
+    },
+  ];
+
   contacts: ContactRecord[] = [
     {
       id: 'contact_1',
@@ -13,6 +40,14 @@ class ContactsRepositoryFake {
       birthday: new Date('1991-04-16T00:00:00.000Z'),
       timezone: 'Europe/Berlin',
       notes: 'College friend',
+      addressLinks: [
+        {
+          kind: ContactAddressKind.PRIMARY,
+          address: {
+            ...this.addressBook[0],
+          },
+        },
+      ],
       createdAt: new Date('2026-03-20T00:00:00.000Z'),
       updatedAt: new Date('2026-03-20T00:00:00.000Z'),
     },
@@ -37,6 +72,24 @@ class ContactsRepositoryFake {
       birthday: params.birthday,
       timezone: params.timezone,
       notes: params.notes,
+      addressLinks: [
+        ...(params.primaryAddressId
+          ? [
+              {
+                kind: ContactAddressKind.PRIMARY,
+                address: this.addressBook.find(
+                  (address) => address.id === params.primaryAddressId,
+                )!,
+              },
+            ]
+          : []),
+        ...params.alternateAddressIds.map((addressId) => ({
+          kind: ContactAddressKind.ALTERNATE,
+          address: this.addressBook.find(
+            (address) => address.id === addressId,
+          )!,
+        })),
+      ],
       createdAt: new Date('2026-03-21T00:00:00.000Z'),
       updatedAt: new Date('2026-03-21T00:00:00.000Z'),
     };
@@ -60,6 +113,24 @@ class ContactsRepositoryFake {
       birthday: params.birthday,
       timezone: params.timezone,
       notes: params.notes,
+      addressLinks: [
+        ...(params.primaryAddressId
+          ? [
+              {
+                kind: ContactAddressKind.PRIMARY,
+                address: this.addressBook.find(
+                  (address) => address.id === params.primaryAddressId,
+                )!,
+              },
+            ]
+          : []),
+        ...params.alternateAddressIds.map((addressId) => ({
+          kind: ContactAddressKind.ALTERNATE,
+          address: this.addressBook.find(
+            (address) => address.id === addressId,
+          )!,
+        })),
+      ],
       updatedAt: new Date('2026-03-21T00:00:00.000Z'),
     };
     this.contacts[index] = updatedRecord;
@@ -86,6 +157,14 @@ class ContactsRepositoryFake {
             contact.id !== excludedContactId,
         )
         .map((contact) => ({ id: contact.id })),
+    );
+  }
+
+  findAddressesByIds(_userId: string, addressIds: string[]) {
+    return Promise.resolve(
+      this.addressBook
+        .filter((address) => addressIds.includes(address.id))
+        .map((address) => ({ id: address.id })),
     );
   }
 }
@@ -116,8 +195,17 @@ describe('ContactsService', () => {
       birthday: '1990-01-01',
       timezone: 'Europe/Berlin',
       notes: 'Sibling',
+      primaryAddressId: 'address_2',
+      alternateAddressIds: [],
     });
 
     expect(response.warning?.duplicateContactIds).toContain('contact_1');
+  });
+
+  it('returns contact addresses as primary and alternate groups', async () => {
+    const response = await contactsService.listContacts('user_1', null);
+
+    expect(response.contacts[0]?.primaryAddress?.id).toBe('address_1');
+    expect(response.contacts[0]?.alternateAddresses).toHaveLength(0);
   });
 });

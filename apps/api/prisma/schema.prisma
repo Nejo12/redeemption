@@ -25,6 +25,11 @@ enum AddressValidationStatus {
   INVALID
 }
 
+enum ContactAddressKind {
+  PRIMARY
+  ALTERNATE
+}
+
 model User {
   id                  String                   @id @default(cuid())
   email               String                   @unique
@@ -53,6 +58,7 @@ model Address {
   validationStatus AddressValidationStatus @default(VALID)
   createdAt        DateTime                @default(now())
   updatedAt        DateTime                @updatedAt
+  contactLinks     ContactAddress[]
   user             User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, countryCode, postalCode, city])
@@ -69,9 +75,24 @@ model Contact {
   notes           String?
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
+  addressLinks    ContactAddress[]
   user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, lastName, firstName])
+}
+
+model ContactAddress {
+  id        String             @id @default(cuid())
+  contactId String
+  addressId String
+  kind      ContactAddressKind
+  createdAt DateTime           @default(now())
+  address   Address            @relation(fields: [addressId], references: [id], onDelete: Cascade)
+  contact   Contact            @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@unique([contactId, addressId])
+  @@index([contactId, kind])
+  @@index([addressId])
 }
 
 model SenderProfile {

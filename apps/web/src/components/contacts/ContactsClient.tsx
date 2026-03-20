@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import { listAddresses } from "@/lib/addresses-api";
+import { AddressView, getCountryLabel } from "@/lib/addresses-contract";
 import { createContact, deleteContact, listContacts, updateContact } from "@/lib/contacts-api";
 import {
   ContactResponse,
@@ -23,6 +25,8 @@ const emptyForm = {
   birthday: "",
   timezone: "",
   notes: "",
+  primaryAddressId: "",
+  alternateAddressIds: [] as string[],
 };
 
 export function ContactsClient() {
@@ -31,6 +35,7 @@ export function ContactsClient() {
   const [isPending, startTransition] = useTransition();
   const [search, setSearch] = useState("");
   const [contacts, setContacts] = useState<ContactView[]>([]);
+  const [addressOptions, setAddressOptions] = useState<AddressView[]>([]);
   const [editingContactId, setEditingContactId] = useState<string | null>(null);
   const [formState, setFormState] = useState(emptyForm);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -44,8 +49,12 @@ export function ContactsClient() {
 
     startTransition(async () => {
       try {
-        const response = await listContacts(accessToken, search);
-        setContacts(response.contacts);
+        const [contactsResponse, addressesResponse] = await Promise.all([
+          listContacts(accessToken, search),
+          listAddresses(accessToken, ""),
+        ]);
+        setContacts(contactsResponse.contacts);
+        setAddressOptions(addressesResponse.addresses);
       } catch (error) {
         setErrorMessage(error instanceof Error ? error.message : "Unable to load contacts.");
       }
@@ -68,6 +77,8 @@ export function ContactsClient() {
       birthday: contact.birthday ?? "",
       timezone: contact.timezone ?? "",
       notes: contact.notes ?? "",
+      primaryAddressId: contact.primaryAddress?.id ?? "",
+      alternateAddressIds: contact.alternateAddresses.map((address) => address.id),
     });
     setStatusMessage(null);
     setErrorMessage(null);
@@ -87,6 +98,19 @@ export function ContactsClient() {
 
     const response = await listContacts(accessToken, search);
     setContacts(response.contacts);
+  }
+
+  function handleAlternateToggle(addressId: string) {
+    setFormState((current) => {
+      const isSelected = current.alternateAddressIds.includes(addressId);
+
+      return {
+        ...current,
+        alternateAddressIds: isSelected
+          ? current.alternateAddressIds.filter((id) => id !== addressId)
+          : [...current.alternateAddressIds, addressId],
+      };
+    });
   }
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -109,6 +133,8 @@ export function ContactsClient() {
           birthday: formState.birthday || undefined,
           timezone: formState.timezone || undefined,
           notes: formState.notes || undefined,
+          primaryAddressId: formState.primaryAddressId || undefined,
+          alternateAddressIds: formState.alternateAddressIds,
         };
 
         const response: ContactResponse = editingContactId
@@ -243,6 +269,64 @@ export function ContactsClient() {
             />
           </label>
 
+          {addressOptions.length > 0 ? (
+            <>
+              <label className="flex flex-col gap-2">
+                <span className="text-xs font-semibold tracking-[0.14em] text-foreground/55 uppercase">
+                  Primary address
+                </span>
+                <select
+                  className="field-input"
+                  value={formState.primaryAddressId}
+                  onChange={(event) => handleInput("primaryAddressId", event.target.value)}
+                >
+                  <option value="">No primary address selected</option>
+                  {addressOptions.map((address) => (
+                    <option key={address.id} value={address.id}>
+                      {address.line1}, {address.city}, {getCountryLabel(address.countryCode)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <div className="flex flex-col gap-2">
+                <span className="text-xs font-semibold tracking-[0.14em] text-foreground/55 uppercase">
+                  Alternate addresses
+                </span>
+                <div className="grid gap-2">
+                  {addressOptions.map((address) => {
+                    const isPrimary = formState.primaryAddressId === address.id;
+
+                    return (
+                      <label
+                        key={address.id}
+                        className="flex items-start gap-3 rounded-[var(--radius-md)] border border-border bg-surface px-4 py-3 text-sm text-foreground/72"
+                      >
+                        <input
+                          type="checkbox"
+                          className="mt-1"
+                          checked={formState.alternateAddressIds.includes(address.id)}
+                          disabled={isPrimary}
+                          onChange={() => handleAlternateToggle(address.id)}
+                        />
+                        <span>
+                          {address.line1}, {address.city}
+                          {address.region ? `, ${address.region}` : ""} {address.postalCode},{" "}
+                          {getCountryLabel(address.countryCode)}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
+          ) : (
+            <AuthMessage tone="info">
+              No saved addresses are available yet. Create addresses first to assign them to
+              contacts.
+            </AuthMessage>
+          )}
+
           {statusMessage ? <AuthMessage tone="success">{statusMessage}</AuthMessage> : null}
           {duplicateMessage ? <AuthMessage tone="info">{duplicateMessage}</AuthMessage> : null}
           {errorMessage ? <AuthMessage tone="error">{errorMessage}</AuthMessage> : null}
@@ -304,6 +388,24 @@ export function ContactsClient() {
                       ) : null}
                       {contact.notes ? (
                         <p className="text-sm leading-7 text-foreground/70">{contact.notes}</p>
+                      ) : null}
+                      {contact.primaryAddress ? (
+                        <p className="text-sm leading-7 text-foreground/70">
+                          Primary address: {contact.primaryAddress.line1},{" "}
+                          {contact.primaryAddress.city},{" "}
+                          {getCountryLabel(contact.primaryAddress.countryCode)}
+                        </p>
+                      ) : null}
+                      {contact.alternateAddresses.length > 0 ? (
+                        <p className="text-sm leading-7 text-foreground/70">
+                          Alternate addresses:{" "}
+                          {contact.alternateAddresses
+                            .map(
+                              (address) =>
+                                `${address.line1}, ${address.city}, ${getCountryLabel(address.countryCode)}`,
+                            )
+                            .join(" · ")}
+                        </p>
                       ) : null}
                     </div>
 

@@ -65,10 +65,40 @@ function parseBirthday(value: string | undefined): string | undefined {
   return value;
 }
 
+function parseAddressIdArray(value: unknown): string[] | undefined {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+
+  if (!Array.isArray(value)) {
+    throw new BadRequestException(
+      'alternateAddressIds must be an array of strings.',
+    );
+  }
+
+  return value.map((item) => {
+    if (typeof item !== 'string' || item.trim().length === 0) {
+      throw new BadRequestException(
+        'alternateAddressIds must contain non-empty strings.',
+      );
+    }
+
+    return item.trim();
+  });
+}
+
 export function parseUpsertContactBody(
   body: unknown,
 ): UpsertContactRequestBody {
   const input = ensureObject(body);
+  const primaryAddressId = readString(input, 'primaryAddressId', false)?.trim();
+  const alternateAddressIds = parseAddressIdArray(input.alternateAddressIds);
+
+  if (primaryAddressId && alternateAddressIds?.includes(primaryAddressId)) {
+    throw new BadRequestException(
+      'primaryAddressId must be different from alternateAddressIds.',
+    );
+  }
 
   return {
     firstName: readString(input, 'firstName')!,
@@ -79,5 +109,7 @@ export function parseUpsertContactBody(
     birthday: parseBirthday(readString(input, 'birthday', false)),
     timezone: readString(input, 'timezone', false),
     notes: readString(input, 'notes', false),
+    primaryAddressId,
+    alternateAddressIds,
   };
 }
