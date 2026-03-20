@@ -65,6 +65,12 @@ Examples:
 - Prefer squash merges so `main` keeps a clean, reviewable history.
 - Require at least one review before merging once branch protection is enabled.
 
+## Architecture Decisions
+
+- Respect the current app boundaries documented in [`docs/ARCHITECTURE_GUARDRAILS.md`](./docs/ARCHITECTURE_GUARDRAILS.md).
+- Record major architecture changes as ADRs under [`docs/adr`](./docs/adr).
+- Do not extract shared packages before the reuse case is proven in more than one app.
+
 ## Engineering Standards
 
 Write code that is readable, maintainable, and efficient. Favor clear names, small focused modules, consistent formatting, and changes that reduce duplication instead of spreading similar logic across the codebase.
