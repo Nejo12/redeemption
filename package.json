@@ -7,8 +7,13 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "concurrently -n web,api,worker -c blue,green,magenta \"npm -w web dev\" \"npm -w api dev\" \"npm -w worker dev\"",
+    "dev": "concurrently --kill-others-on-fail -n web,api -c blue,green \"npm -w web run dev\" \"npm -w api run start:dev\"",
+    "dev:worker": "npm -w worker run dev",
+    "dev:full": "npm run infra:up && concurrently --kill-others-on-fail -n web,api,worker -c blue,green,magenta \"npm -w web run dev\" \"npm -w api run start:dev\" \"npm -w worker run dev\"",
     "build": "npm -ws run build",
+    "infra:up": "docker compose up -d redis minio minio-init",
+    "infra:down": "docker compose down",
+    "infra:logs": "docker compose logs -f redis minio minio-init",
     "lint": "npm -w api run lint && npm -w web run lint && npm -w web run stylelint && npm -w worker run lint",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
