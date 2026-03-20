@@ -6,4 +6,3 @@ describe("web test smoke", () => {
     expect(screen.getByText("Hello Moments-to-Mail")).toBeTruthy();
   });
 });
-

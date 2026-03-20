@@ -9,10 +9,12 @@
   "scripts": {
     "dev": "concurrently -n web,api,worker -c blue,green,magenta \"npm -w web dev\" \"npm -w api dev\" \"npm -w worker dev\"",
     "build": "npm -ws run build",
-    "lint": "npm -ws run lint",
+    "lint": "npm -w api run lint && npm -w web run lint && npm -w web run stylelint && npm -w worker run lint",
     "format": "prettier --write .",
-    "test": "npm -w web test",
+    "format:check": "prettier --check .",
+    "test": "npm -w api test && npm -w web test && npm -w worker test",
     "typecheck": "npm -ws run typecheck",
+    "verify": "npm run format:check && npm run lint && npm run typecheck && npm test && npm run build",
     "prepare": "husky install"
   },
   "repository": {

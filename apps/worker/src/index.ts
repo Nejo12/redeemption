@@ -8,14 +8,6 @@ type RedisJobData = {
   templateVersion: string;
 };
 
-function requireEnv(name: string): string {
-  const value = process.env[name];
-  if (!value) {
-    throw new Error(`Missing required env var: ${name}`);
-  }
-  return value;
-}
-
 const REDIS_URL = process.env.REDIS_URL ?? "redis://localhost:6379";
 const S3_ENDPOINT = process.env.S3_ENDPOINT ?? "http://localhost:9000";
 const S3_BUCKET = process.env.S3_BUCKET ?? "moments-dev";
@@ -31,7 +23,6 @@ const s3Client = new S3Client({
 });
 
 void s3Client;
-void requireEnv;
 
 const redisUrlParsed = new URL(REDIS_URL);
 const connection = {
@@ -52,7 +43,7 @@ const worker = new Worker<RedisJobData, void>(
   async (job) => {
     await renderPdfStub(job.data);
   },
-  { connection }
+  { connection },
 );
 
 worker.on("completed", (job) => {
