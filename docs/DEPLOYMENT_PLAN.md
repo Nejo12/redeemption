@@ -1,6 +1,8 @@
 # Deployment Plan
 
-This document defines the recommended deployment baseline for the current monorepo before full CD automation is added.
+This document defines the recommended deployment baseline for the current monorepo.
+
+The repository now includes baseline deployment workflows for the documented targets. See [`CD_SETUP.md`](./CD_SETUP.md) for the exact GitHub Actions files, required secrets, and provider-side setup checklist.
 
 ## Recommended Baseline
 
@@ -101,11 +103,11 @@ Store runtime secrets in the hosting platform for the service that uses them.
 1. Finalize the environment variable contract.
 2. Choose the production providers listed above or approve an alternative.
 3. Configure staging and production secrets in the hosting platforms.
-4. Add deployment workflows only after the hosting targets are confirmed.
+4. Keep deployment workflows aligned with the selected providers and environment model.
 
 ## Required User Actions
 
-The repository-side work can be completed now, but these external actions still require you:
+The repository now contains the baseline CD workflows, but these external actions still require you:
 
 1. Confirm whether the recommended hosting baseline is acceptable.
 2. Create the actual provider accounts and projects.

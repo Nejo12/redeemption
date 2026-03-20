@@ -16,6 +16,26 @@ Configure branch protection for `main` with these minimum rules:
 - Allow squash merge.
 - Disable merge commits unless the team explicitly decides to use them.
 
+## Environments
+
+Create these GitHub environments:
+
+- `preview`
+- `staging`
+- `production`
+
+Recommended protection rules:
+
+- `production`
+  - require at least one reviewer before deployment
+  - allow deployments only from `main`
+- `staging`
+  - optionally require reviewer approval if the environment is shared
+- `preview`
+  - keep unblocked for pull request deploys unless the team later needs tighter control
+
+Keep the environment names aligned with [`docs/ENVIRONMENT_STRATEGY.md`](./ENVIRONMENT_STRATEGY.md) and [`docs/CD_SETUP.md`](./CD_SETUP.md).
+
 ## Labels
 
 Use these labels as the baseline taxonomy:

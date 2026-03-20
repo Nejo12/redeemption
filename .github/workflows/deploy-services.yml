@@ -1,0 +1,92 @@
+name: Deploy Services
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "apps/api/**"
+      - "apps/worker/**"
+      - "packages/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/deploy-services.yml"
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Deployment target
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+        default: staging
+      service:
+        description: Service selection
+        required: true
+        type: choice
+        options:
+          - all
+          - api
+          - worker
+        default: all
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-services-${{ github.event_name == 'workflow_dispatch' && format('{0}-{1}', github.event.inputs.target, github.event.inputs.service) || format('production-{0}', github.sha) }}
+  cancel-in-progress: false
+
+jobs:
+  deploy-api-staging:
+    name: deploy-api-staging
+    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'staging' && (github.event.inputs.service == 'all' || github.event.inputs.service == 'api') && secrets.RAILWAY_DEPLOY_HOOK_URL_API_STAGING != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: staging
+
+    steps:
+      - name: Trigger Railway API staging deployment
+        env:
+          RAILWAY_DEPLOY_HOOK_URL_API_STAGING: ${{ secrets.RAILWAY_DEPLOY_HOOK_URL_API_STAGING }}
+        run: curl --fail --silent --show-error --location --request POST "${RAILWAY_DEPLOY_HOOK_URL_API_STAGING}"
+
+  deploy-worker-staging:
+    name: deploy-worker-staging
+    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'staging' && (github.event.inputs.service == 'all' || github.event.inputs.service == 'worker') && secrets.RAILWAY_DEPLOY_HOOK_URL_WORKER_STAGING != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: staging
+
+    steps:
+      - name: Trigger Railway worker staging deployment
+        env:
+          RAILWAY_DEPLOY_HOOK_URL_WORKER_STAGING: ${{ secrets.RAILWAY_DEPLOY_HOOK_URL_WORKER_STAGING }}
+        run: curl --fail --silent --show-error --location --request POST "${RAILWAY_DEPLOY_HOOK_URL_WORKER_STAGING}"
+
+  deploy-api-production:
+    name: deploy-api-production
+    if: ${{ ((github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'production' && (github.event.inputs.service == 'all' || github.event.inputs.service == 'api'))) && secrets.RAILWAY_DEPLOY_HOOK_URL_API_PRODUCTION != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: production
+
+    steps:
+      - name: Trigger Railway API production deployment
+        env:
+          RAILWAY_DEPLOY_HOOK_URL_API_PRODUCTION: ${{ secrets.RAILWAY_DEPLOY_HOOK_URL_API_PRODUCTION }}
+        run: curl --fail --silent --show-error --location --request POST "${RAILWAY_DEPLOY_HOOK_URL_API_PRODUCTION}"
+
+  deploy-worker-production:
+    name: deploy-worker-production
+    if: ${{ ((github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'production' && (github.event.inputs.service == 'all' || github.event.inputs.service == 'worker'))) && secrets.RAILWAY_DEPLOY_HOOK_URL_WORKER_PRODUCTION != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: production
+
+    steps:
+      - name: Trigger Railway worker production deployment
+        env:
+          RAILWAY_DEPLOY_HOOK_URL_WORKER_PRODUCTION: ${{ secrets.RAILWAY_DEPLOY_HOOK_URL_WORKER_PRODUCTION }}
+        run: curl --fail --silent --show-error --location --request POST "${RAILWAY_DEPLOY_HOOK_URL_WORKER_PRODUCTION}"
