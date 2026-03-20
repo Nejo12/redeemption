@@ -20,6 +20,11 @@ enum RelationshipTag {
   WORK
 }
 
+enum AddressValidationStatus {
+  VALID
+  INVALID
+}
+
 model User {
   id                  String                   @id @default(cuid())
   email               String                   @unique
@@ -29,10 +34,28 @@ model User {
   emailVerifiedAt     DateTime?
   createdAt           DateTime                 @default(now())
   updatedAt           DateTime                 @updatedAt
+  addresses           Address[]
   contacts            Contact[]
   profile             SenderProfile?
   verificationTokens  EmailVerificationToken[]
   passwordResetTokens PasswordResetToken[]
+}
+
+model Address {
+  id               String                  @id @default(cuid())
+  userId           String
+  line1            String
+  line2            String?
+  city             String
+  region           String?
+  postalCode       String
+  countryCode      String
+  validationStatus AddressValidationStatus @default(VALID)
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+  user             User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, countryCode, postalCode, city])
 }
 
 model Contact {

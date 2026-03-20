@@ -137,6 +137,13 @@ export function DashboardClient() {
               >
                 Manage contacts
               </ActionLink>
+              <ActionLink
+                href="/addresses"
+                variant="secondary"
+                className="min-h-10 px-4 py-2 text-xs"
+              >
+                Manage addresses
+              </ActionLink>
               <Link
                 href="/auth/forgot-password"
                 className="text-sm font-medium text-accent underline-offset-4 hover:underline"
