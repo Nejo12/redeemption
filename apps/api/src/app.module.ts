@@ -5,6 +5,7 @@ import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { ContactsModule } from './contacts/contacts.module';
 import { DatabaseModule } from './database/database.module';
+import { RenderingModule } from './rendering/rendering.module';
 import { SenderProfileModule } from './sender-profile/sender-profile.module';
 import { StorageModule } from './storage/storage.module';
 import { TemplatesModule } from './templates/templates.module';
@@ -18,6 +19,7 @@ import { TemplatesModule } from './templates/templates.module';
     AddressesModule,
     StorageModule,
     TemplatesModule,
+    RenderingModule,
   ],
   controllers: [AppController],
   providers: [AppService],

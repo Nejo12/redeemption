@@ -1,4 +1,4 @@
-import { StoredObject } from '@prisma/client';
+import { StoredObject, StoredObjectKind } from '@prisma/client';
 
 export type StoredObjectRecord = Pick<
   StoredObject,
@@ -37,3 +37,38 @@ export type UploadObjectParams = {
   body: Buffer;
   contentType: string;
 };
+
+export type StoredObjectDetailsRecord = Pick<
+  StoredObject,
+  | 'id'
+  | 'userId'
+  | 'kind'
+  | 'bucket'
+  | 'objectKey'
+  | 'originalFilename'
+  | 'contentType'
+  | 'sizeBytes'
+  | 'checksumSha256'
+  | 'createdAt'
+  | 'updatedAt'
+>;
+
+export type CreateRenderArtifactParams = {
+  artifactId: string;
+  userId: string;
+  previewId: string;
+  templateSlug: string;
+  html: string;
+};
+
+export type DownloadObjectParams = {
+  bucket: string;
+  objectKey: string;
+};
+
+export type DownloadedObject = {
+  body: Buffer;
+  contentType: string | null;
+};
+
+export type StoredObjectKindValue = StoredObjectKind;

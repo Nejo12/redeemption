@@ -9,6 +9,8 @@ import { ActionLink } from "@/components/ui/ActionLink";
 import { PanelSurface } from "@/components/ui/PanelSurface";
 import { StatusPill } from "@/components/ui/StatusPill";
 import { readStoredAuthSession } from "@/lib/auth-session";
+import { createRenderPreview } from "@/lib/rendering-api";
+import { RenderPreviewView } from "@/lib/rendering-contract";
 import { listPhotoUploads, uploadPhoto } from "@/lib/storage-api";
 import { StoredObjectView } from "@/lib/storage-contract";
 import { getTemplate } from "@/lib/templates-api";
@@ -29,6 +31,7 @@ type TemplateEditorClientProps = {
 export function TemplateEditorClient({ templateSlug }: TemplateEditorClientProps) {
   const [isPending, startTransition] = useTransition();
   const [isUploadingPhoto, startPhotoUploadTransition] = useTransition();
+  const [isGeneratingServerPreview, startServerPreviewTransition] = useTransition();
   const storedSession = readStoredAuthSession();
   const accessToken = storedSession?.session.accessToken ?? null;
   const [template, setTemplate] = useState<TemplateView | null>(null);
@@ -39,6 +42,9 @@ export function TemplateEditorClient({ templateSlug }: TemplateEditorClientProps
   const [uploadedPhoto, setUploadedPhoto] = useState<StoredObjectView | null>(null);
   const [recentUploads, setRecentUploads] = useState<StoredObjectView[]>([]);
   const [storageMessage, setStorageMessage] = useState<string | null>(null);
+  const [serverPreview, setServerPreview] = useState<RenderPreviewView | null>(null);
+  const [serverPreviewMessage, setServerPreviewMessage] = useState<string | null>(null);
+  const [serverPreviewErrorMessage, setServerPreviewErrorMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -52,12 +58,18 @@ export function TemplateEditorClient({ templateSlug }: TemplateEditorClientProps
         setPhotoFit("FIT");
         setUploadedPhoto(null);
         setStorageMessage(null);
+        setServerPreview(null);
+        setServerPreviewMessage(null);
+        setServerPreviewErrorMessage(null);
         setErrorMessage(null);
       } catch (error) {
         setTemplate(null);
         setFieldValues({});
         setPhotoPreviewUrl(null);
         setPhotoFileName(null);
+        setServerPreview(null);
+        setServerPreviewMessage(null);
+        setServerPreviewErrorMessage(null);
         setErrorMessage(error instanceof Error ? error.message : "Unable to load the template.");
       }
     });
@@ -94,6 +106,7 @@ export function TemplateEditorClient({ templateSlug }: TemplateEditorClientProps
     : null;
 
   function handleFieldChange(fieldKey: string, value: string) {
+    clearServerPreviewState();
     setFieldValues((current) => ({
       ...current,
       [fieldKey]: value,
@@ -101,6 +114,7 @@ export function TemplateEditorClient({ templateSlug }: TemplateEditorClientProps
   }
 
   function handleVariableInsert(fieldKey: string, token: string) {
+    clearServerPreviewState();
     setFieldValues((current) => ({
       ...current,
       [fieldKey]: insertVariableToken(current[fieldKey] ?? "", token),
@@ -108,6 +122,7 @@ export function TemplateEditorClient({ templateSlug }: TemplateEditorClientProps
   }
 
   function handlePhotoChange(file: File | null) {
+    clearServerPreviewState();
     if (photoPreviewUrl) {
       URL.revokeObjectURL(photoPreviewUrl);
     }
@@ -149,6 +164,46 @@ export function TemplateEditorClient({ templateSlug }: TemplateEditorClientProps
     });
   }
 
+  function clearServerPreviewState() {
+    setServerPreview(null);
+    setServerPreviewMessage(null);
+    setServerPreviewErrorMessage(null);
+  }
+
+  function handleGenerateServerPreview() {
+    if (!accessToken) {
+      setServerPreview(null);
+      setServerPreviewMessage(null);
+      setServerPreviewErrorMessage(
+        "Sign in first so the server preview can resolve your uploaded photo and store a render artifact.",
+      );
+      return;
+    }
+
+    setServerPreviewMessage(null);
+    setServerPreviewErrorMessage(null);
+
+    startServerPreviewTransition(async () => {
+      try {
+        const response = await createRenderPreview(accessToken, {
+          templateSlug,
+          fieldValues,
+          photoObjectId: uploadedPhoto?.id ?? null,
+          photoFit: uploadedPhoto ? photoFit : null,
+        });
+        setServerPreview(response.preview);
+        setServerPreviewMessage(
+          `Stored render artifact ${response.preview.artifactObjectId} for the current editor state.`,
+        );
+      } catch (error) {
+        setServerPreview(null);
+        setServerPreviewErrorMessage(
+          error instanceof Error ? error.message : "Unable to generate a server preview.",
+        );
+      }
+    });
+  }
+
   if (errorMessage) {
     return <AuthMessage tone="error">{errorMessage}</AuthMessage>;
   }
@@ -161,7 +216,7 @@ export function TemplateEditorClient({ templateSlug }: TemplateEditorClientProps
     <div className="grid gap-6 xl:grid-cols-[0.96fr_1.04fr]">
       <AuthFormCard
         title={`${template.name} editor`}
-        description="This MVP editor binds inputs directly from template metadata. It supports typed text fields, variable insertion, one-photo input, and a live preview surface without introducing storage or rendering persistence yet."
+        description="This MVP editor binds inputs directly from template metadata. It supports typed text fields, variable insertion, one-photo input, and both local and server-rendered preview surfaces."
         footer={
           <div className="flex flex-wrap gap-3">
             <ActionLink
@@ -202,8 +257,9 @@ export function TemplateEditorClient({ templateSlug }: TemplateEditorClientProps
           ))}
 
           <AuthMessage tone="info">
-            Text edits remain local for this slice, but photo uploads now go through the API storage
-            boundary so later rendering work can reference a stable stored asset.
+            Local preview remains instant, while server preview now round-trips through the API so
+            the next rendering slice can build on a persisted artifact boundary instead of a local
+            browser-only state.
           </AuthMessage>
         </div>
       </AuthFormCard>
@@ -220,7 +276,7 @@ export function TemplateEditorClient({ templateSlug }: TemplateEditorClientProps
               </h2>
             </div>
 
-            {isPending || isUploadingPhoto ? (
+            {isPending || isUploadingPhoto || isGeneratingServerPreview ? (
               <StatusPill tone="accent">Refreshing</StatusPill>
             ) : null}
           </div>
@@ -238,6 +294,57 @@ export function TemplateEditorClient({ templateSlug }: TemplateEditorClientProps
         </PanelSurface>
 
         <PanelSurface className="px-6 py-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold tracking-[0.16em] text-accent uppercase">
+                Server preview
+              </p>
+              <h2 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-foreground">
+                Generate a persisted render artifact from the current editor state.
+              </h2>
+            </div>
+
+            <button
+              type="button"
+              className="inline-flex min-h-11 items-center justify-center rounded-full bg-accent px-5 py-3 text-xs font-semibold tracking-[0.14em] text-white uppercase transition-colors hover:bg-accent-strong disabled:cursor-not-allowed disabled:bg-accent/45"
+              onClick={handleGenerateServerPreview}
+              disabled={isGeneratingServerPreview}
+            >
+              {isGeneratingServerPreview ? "Generating" : "Generate server preview"}
+            </button>
+          </div>
+
+          <div className="mt-5 space-y-4">
+            {serverPreviewMessage ? (
+              <AuthMessage tone="success">{serverPreviewMessage}</AuthMessage>
+            ) : null}
+            {serverPreviewErrorMessage ? (
+              <AuthMessage tone="error">{serverPreviewErrorMessage}</AuthMessage>
+            ) : null}
+
+            {serverPreview ? (
+              <div className="space-y-4">
+                <div className="rounded-[var(--radius-md)] border border-border bg-surface px-4 py-4 text-sm leading-7 text-foreground/72">
+                  Server preview artifact: {serverPreview.artifactObjectId}
+                  <br />
+                  Generated at: {new Date(serverPreview.createdAt).toLocaleString()}
+                </div>
+                <iframe
+                  title={`${serverPreview.templateName} server preview`}
+                  srcDoc={serverPreview.html}
+                  className="h-[560px] w-full rounded-[var(--radius-lg)] border border-border bg-surface"
+                />
+              </div>
+            ) : (
+              <div className="rounded-[var(--radius-md)] border border-dashed border-border bg-surface px-4 py-6 text-sm leading-7 text-foreground/68">
+                Generate a server preview after filling the required fields and uploading the photo
+                to compare the browser-side composition with the persisted artifact.
+              </div>
+            )}
+          </div>
+        </PanelSurface>
+
+        <PanelSurface className="px-6 py-6">
           <p className="text-xs font-semibold tracking-[0.16em] text-accent uppercase">
             Editor readiness
           </p>
@@ -251,6 +358,10 @@ export function TemplateEditorClient({ templateSlug }: TemplateEditorClientProps
             <li>
               One-photo uploads now pass through the API storage boundary and return stable object
               metadata for later rendering work.
+            </li>
+            <li>
+              Server preview generation now produces a persisted render artifact that the next PDF
+              rendering slice can build on.
             </li>
           </ul>
         </PanelSurface>

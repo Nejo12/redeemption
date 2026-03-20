@@ -54,6 +54,11 @@ enum StoredObjectKind {
   RENDER_ARTIFACT
 }
 
+enum RenderPhotoFit {
+  FIT
+  COVER
+}
+
 model User {
   id                  String                   @id @default(cuid())
   email               String                   @unique
@@ -66,6 +71,7 @@ model User {
   addresses           Address[]
   contacts            Contact[]
   profile             SenderProfile?
+  renderPreviews      RenderPreview[]
   storedObjects       StoredObject[]
   verificationTokens  EmailVerificationToken[]
   passwordResetTokens PasswordResetToken[]
@@ -169,6 +175,7 @@ model Template {
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
   fields          TemplateField[]
+  renderPreviews  RenderPreview[]
 
   @@index([category, isActive, name])
 }
@@ -201,10 +208,33 @@ model StoredObject {
   checksumSha256   String?
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
+  renderPreviewArtifacts RenderPreview[] @relation("RenderPreviewArtifact")
+  renderPreviewPhotos    RenderPreview[] @relation("RenderPreviewPhoto")
   user             User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([userId, kind, createdAt])
   @@index([kind, createdAt])
+}
+
+model RenderPreview {
+  id               String         @id @default(cuid())
+  userId           String
+  templateId       String
+  photoObjectId    String?
+  artifactObjectId String         @unique
+  headline         String
+  message          String
+  fieldValues      Json
+  photoFit         RenderPhotoFit?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  artifactObject   StoredObject   @relation("RenderPreviewArtifact", fields: [artifactObjectId], references: [id], onDelete: Cascade)
+  photoObject      StoredObject?  @relation("RenderPreviewPhoto", fields: [photoObjectId], references: [id], onDelete: SetNull)
+  template         Template       @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([templateId, createdAt])
 }
 
 model PasswordResetToken {

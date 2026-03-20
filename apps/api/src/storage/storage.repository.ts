@@ -1,6 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
-import { CreateStoredObjectParams, StoredObjectRecord } from './storage.types';
+import {
+  CreateStoredObjectParams,
+  StoredObjectDetailsRecord,
+  StoredObjectRecord,
+} from './storage.types';
 
 @Injectable()
 export class StorageRepository {
@@ -38,6 +42,31 @@ export class StorageRepository {
         originalFilename: true,
         contentType: true,
         sizeBytes: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+  }
+
+  findOwnedStoredObjectById(
+    userId: string,
+    objectId: string,
+  ): Promise<StoredObjectDetailsRecord | null> {
+    return this.prisma.storedObject.findFirst({
+      where: {
+        id: objectId,
+        userId,
+      },
+      select: {
+        id: true,
+        userId: true,
+        kind: true,
+        bucket: true,
+        objectKey: true,
+        originalFilename: true,
+        contentType: true,
+        sizeBytes: true,
+        checksumSha256: true,
         createdAt: true,
         updatedAt: true,
       },

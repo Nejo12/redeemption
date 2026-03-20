@@ -1,6 +1,14 @@
-import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import {
+  GetObjectCommand,
+  PutObjectCommand,
+  S3Client,
+} from '@aws-sdk/client-s3';
 import { Injectable } from '@nestjs/common';
-import { UploadObjectParams } from './storage.types';
+import {
+  DownloadObjectParams,
+  DownloadedObject,
+  UploadObjectParams,
+} from './storage.types';
 
 function shouldForcePathStyle(endpoint: string): boolean {
   return endpoint.includes('localhost') || endpoint.includes('127.0.0.1');
@@ -33,5 +41,21 @@ export class StorageClientService {
         ContentType: params.contentType,
       }),
     );
+  }
+
+  async downloadObject(
+    params: DownloadObjectParams,
+  ): Promise<DownloadedObject> {
+    const response = await this.s3Client.send(
+      new GetObjectCommand({
+        Bucket: params.bucket,
+        Key: params.objectKey,
+      }),
+    );
+
+    return {
+      body: Buffer.from(await response.Body!.transformToByteArray()),
+      contentType: response.ContentType ?? null,
+    };
   }
 }
