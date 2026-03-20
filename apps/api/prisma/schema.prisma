@@ -13,6 +13,13 @@ enum UserStatus {
   DISABLED
 }
 
+enum RelationshipTag {
+  FAMILY
+  FRIEND
+  PARTNER
+  WORK
+}
+
 model User {
   id                  String                   @id @default(cuid())
   email               String                   @unique
@@ -22,9 +29,26 @@ model User {
   emailVerifiedAt     DateTime?
   createdAt           DateTime                 @default(now())
   updatedAt           DateTime                 @updatedAt
+  contacts            Contact[]
   profile             SenderProfile?
   verificationTokens  EmailVerificationToken[]
   passwordResetTokens PasswordResetToken[]
+}
+
+model Contact {
+  id              String          @id @default(cuid())
+  userId          String
+  firstName       String
+  lastName        String
+  relationshipTag RelationshipTag?
+  birthday        DateTime?
+  timezone        String?
+  notes           String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, lastName, firstName])
 }
 
 model SenderProfile {

@@ -130,6 +130,13 @@ export function DashboardClient() {
               >
                 Edit sender profile
               </ActionLink>
+              <ActionLink
+                href="/contacts"
+                variant="secondary"
+                className="min-h-10 px-4 py-2 text-xs"
+              >
+                Manage contacts
+              </ActionLink>
               <Link
                 href="/auth/forgot-password"
                 className="text-sm font-medium text-accent underline-offset-4 hover:underline"
