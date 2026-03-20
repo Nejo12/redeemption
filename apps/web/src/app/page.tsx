@@ -33,6 +33,9 @@ export default function Home() {
               <ActionLink href="/auth/login" variant="secondary">
                 Sign in
               </ActionLink>
+              <ActionLink href="/templates" variant="secondary">
+                Browse templates
+              </ActionLink>
             </div>
           </div>
 
@@ -82,8 +85,8 @@ export default function Home() {
               Current Baseline
             </p>
             <p className="mt-2 max-w-2xl text-sm leading-7 text-foreground/70 sm:text-base">
-              The system now defines token groups, reusable page primitives, and a first auth
-              journey that talks to the API contract directly.
+              The system now defines token groups, reusable page primitives, a first auth journey,
+              and a seeded template catalog that can be previewed before editor work begins.
             </p>
           </div>
           <StatusPill>Ready for sender onboarding</StatusPill>

@@ -6,6 +6,7 @@ import { AuthModule } from './auth/auth.module';
 import { ContactsModule } from './contacts/contacts.module';
 import { DatabaseModule } from './database/database.module';
 import { SenderProfileModule } from './sender-profile/sender-profile.module';
+import { TemplatesModule } from './templates/templates.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { SenderProfileModule } from './sender-profile/sender-profile.module';
     SenderProfileModule,
     ContactsModule,
     AddressesModule,
+    TemplatesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

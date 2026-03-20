@@ -30,6 +30,25 @@ enum ContactAddressKind {
   ALTERNATE
 }
 
+enum TemplateCategory {
+  BIRTHDAY
+  GENERAL
+  HOLIDAY
+  THANK_YOU
+  ANNIVERSARY
+}
+
+enum TemplateOrientation {
+  PORTRAIT
+  LANDSCAPE
+}
+
+enum TemplateFieldKind {
+  TEXT
+  TEXTAREA
+  PHOTO
+}
+
 model User {
   id                  String                   @id @default(cuid())
   email               String                   @unique
@@ -122,6 +141,46 @@ model EmailVerificationToken {
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+model Template {
+  id              String              @id
+  slug            String              @unique
+  name            String
+  category        TemplateCategory
+  summary         String
+  description     String
+  widthMm         Int
+  heightMm        Int
+  orientation     TemplateOrientation
+  previewLabel    String
+  previewHeadline String
+  previewMessage  String
+  accentHex       String
+  surfaceHex      String
+  textHex         String
+  isActive        Boolean             @default(true)
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  fields          TemplateField[]
+
+  @@index([category, isActive, name])
+}
+
+model TemplateField {
+  id          String            @id
+  templateId  String
+  key         String
+  label       String
+  kind        TemplateFieldKind
+  required    Boolean           @default(false)
+  placeholder String?
+  maxLength   Int?
+  position    Int
+  template    Template          @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@unique([templateId, key])
+  @@index([templateId, position])
 }
 
 model PasswordResetToken {
