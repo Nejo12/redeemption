@@ -6,10 +6,16 @@ import { execFileSync } from "node:child_process";
  * @param {import("node:child_process").ExecFileSyncOptions} [options]
  */
 export function runCommand(command, args, options = {}) {
-  return execFileSync(command, args, {
+  const output = execFileSync(command, args, {
     encoding: "utf8",
     ...options,
-  }).trim();
+  });
+
+  if (typeof output !== "string") {
+    return "";
+  }
+
+  return output.trim();
 }
 
 export function parseRepoFromGitRemote() {
