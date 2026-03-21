@@ -11,6 +11,7 @@ class PaymentsRepositoryFake {
     id: string;
     userId: string;
     status: 'AWAITING_PAYMENT' | 'PAYMENT_FAILED' | 'PAID';
+    printableAssetStatus: 'PENDING' | 'PROCESSING' | 'READY' | 'FAILED';
     headline: string;
     templateName: string;
     contactFirstName: string;
@@ -19,6 +20,7 @@ class PaymentsRepositoryFake {
     id: 'order_1',
     userId: 'user_1',
     status: 'AWAITING_PAYMENT' as const,
+    printableAssetStatus: 'READY' as const,
     headline: 'Mira Cole',
     templateName: 'Birthday Bloom',
     contactFirstName: 'Mira',
@@ -198,6 +200,23 @@ describe('PaymentsService', () => {
         shippingType: 'STANDARD',
       }),
     ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('rejects checkout until the printable asset is ready', async () => {
+    if (!paymentsRepository.checkoutOrder) {
+      throw new Error('Expected checkout order fixture.');
+    }
+
+    paymentsRepository.checkoutOrder = {
+      ...paymentsRepository.checkoutOrder,
+      printableAssetStatus: 'PROCESSING',
+    };
+
+    await expect(
+      service.createCheckoutSession('user_1', 'order_1', {
+        shippingType: 'STANDARD',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('marks an order paid from checkout.session.completed', async () => {

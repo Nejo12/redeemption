@@ -25,6 +25,7 @@ export class PaymentsRepository {
         id: true,
         userId: true,
         status: true,
+        printableAssetStatus: true,
         headline: true,
         templateName: true,
         contactFirstName: true,

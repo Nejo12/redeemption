@@ -10,7 +10,11 @@ Behavior:
 
 - orders are immutable snapshots derived from approved drafts
 - each order stores its own contact/template summary fields
-- each order carries an immutable render artifact object reference
+- each order carries:
+  - the original preview artifact reference used during approval
+  - a separate printable asset lifecycle for the order-safe PDF
+- printable asset generation is handled asynchronously by the worker
+- checkout should only proceed once `printableAssetStatus` is `READY`
 
 ## `POST /orders/from-drafts/:draftId`
 
@@ -22,7 +26,9 @@ Behavior:
 - a draft can be converted only once
 - the approved draft must already have a persisted render preview
 - the created order starts in `AWAITING_PAYMENT`
-- the order stores immutable references for:
+- the order stores immutable references and render metadata for:
   - `renderPreviewId`
   - `artifactObjectId`
   - optional `photoObjectId`
+  - template size/orientation/color snapshot fields used to generate the final PDF
+- the order starts with `printableAssetStatus = PENDING`

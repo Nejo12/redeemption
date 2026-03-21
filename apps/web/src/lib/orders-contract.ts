@@ -9,6 +9,8 @@ export type OrderStatusValue =
   | "FULFILLED"
   | "CANCELLED";
 
+export type PrintableAssetStatusValue = "PENDING" | "PROCESSING" | "READY" | "FAILED";
+
 export interface OrderView {
   id: string;
   draftId: string;
@@ -18,8 +20,19 @@ export interface OrderView {
   templateId: string;
   templateSlug: string;
   templateName: string;
+  templateWidthMm: number;
+  templateHeightMm: number;
+  templateOrientation: "PORTRAIT" | "LANDSCAPE";
+  templatePreviewLabel: string;
+  templateAccentHex: string;
+  templateSurfaceHex: string;
+  templateTextHex: string;
   renderPreviewId: string;
   artifactObjectId: string;
+  printableAssetObjectId: string | null;
+  printableAssetStatus: PrintableAssetStatusValue;
+  printableAssetGeneratedAt: string | null;
+  printableAssetError: string | null;
   photoObjectId: string | null;
   status: OrderStatusValue;
   shippingType: ShippingTypeValue | null;

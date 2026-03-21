@@ -20,6 +20,7 @@ Behavior:
 - persists the current pricing snapshot onto the order before redirecting
 - returns a hosted `checkoutUrl`
 - rejects paid orders or orders that are not currently unpaid
+- rejects checkout until the order has `printableAssetStatus = READY`
 
 Response shape:
 

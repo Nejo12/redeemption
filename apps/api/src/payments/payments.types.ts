@@ -1,5 +1,6 @@
 import {
   OrderStatus,
+  PrintableAssetStatus,
   ShippingType,
   ShippingZone,
   PaymentWebhookEvent,
@@ -9,6 +10,7 @@ export interface CheckoutOrderRecord {
   id: string;
   userId: string;
   status: OrderStatus;
+  printableAssetStatus: PrintableAssetStatus;
   headline: string;
   templateName: string;
   contactFirstName: string;

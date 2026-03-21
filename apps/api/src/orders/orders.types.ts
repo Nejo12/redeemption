@@ -1,12 +1,15 @@
 import {
   Order,
+  PrintableAssetStatus,
   RenderPhotoFit,
+  TemplateOrientation,
   ShippingType,
   ShippingZone,
 } from '@prisma/client';
 
 export type OrderRecord = Pick<
   Order,
+  | 'userId'
   | 'id'
   | 'draftId'
   | 'contactId'
@@ -15,8 +18,19 @@ export type OrderRecord = Pick<
   | 'templateId'
   | 'templateSlug'
   | 'templateName'
+  | 'templateWidthMm'
+  | 'templateHeightMm'
+  | 'templateOrientation'
+  | 'templatePreviewLabel'
+  | 'templateAccentHex'
+  | 'templateSurfaceHex'
+  | 'templateTextHex'
   | 'renderPreviewId'
   | 'artifactObjectId'
+  | 'printableAssetObjectId'
+  | 'printableAssetStatus'
+  | 'printableAssetGeneratedAt'
+  | 'printableAssetError'
   | 'photoObjectId'
   | 'status'
   | 'shippingType'
@@ -57,6 +71,13 @@ export interface DraftOrderConversionRecord {
     id: string;
     slug: string;
     name: string;
+    widthMm: number;
+    heightMm: number;
+    orientation: TemplateOrientation;
+    previewLabel: string;
+    accentHex: string;
+    surfaceHex: string;
+    textHex: string;
   };
   renderPreview: {
     id: string;
@@ -80,8 +101,19 @@ export interface CreateOrderParams {
   templateId: string;
   templateSlug: string;
   templateName: string;
+  templateWidthMm: number;
+  templateHeightMm: number;
+  templateOrientation: TemplateOrientation;
+  templatePreviewLabel: string;
+  templateAccentHex: string;
+  templateSurfaceHex: string;
+  templateTextHex: string;
   renderPreviewId: string;
   artifactObjectId: string;
+  printableAssetObjectId?: string | null;
+  printableAssetStatus?: PrintableAssetStatus;
+  printableAssetGeneratedAt?: Date | null;
+  printableAssetError?: string | null;
   photoObjectId: string | null;
   status: 'AWAITING_PAYMENT';
   shippingType?: ShippingType | null;
@@ -100,4 +132,21 @@ export interface CreateOrderParams {
   photoFit: RenderPhotoFit | null;
   scheduledFor: Date;
   occurrenceDate: Date;
+}
+
+export interface PrintableAssetJobRecord {
+  id: string;
+  userId: string;
+  templateSlug: string;
+  templateName: string;
+  templateWidthMm: number;
+  templateHeightMm: number;
+  templatePreviewLabel: string;
+  templateAccentHex: string;
+  templateSurfaceHex: string;
+  templateTextHex: string;
+  headline: string;
+  message: string;
+  photoObjectId: string | null;
+  photoFit: RenderPhotoFit | null;
 }

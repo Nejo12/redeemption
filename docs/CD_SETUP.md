@@ -19,6 +19,7 @@ This document defines the repository-side deployment automation that now exists,
 - `worker`
   - Railway native Git deployment is the production source of truth
   - staging or production deploys are available through `workflow_dispatch` as a fallback
+  - the worker currently owns due-draft materialization polling and printable PDF generation for orders
 
 This matches the current baseline in [`DEPLOYMENT_PLAN.md`](./DEPLOYMENT_PLAN.md): provider-native Git deployment is the default path, and GitHub Actions remains an explicit fallback when you need to force a deploy from the repository side.
 

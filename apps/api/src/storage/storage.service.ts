@@ -13,7 +13,7 @@ import {
 import { StorageClientService } from './storage-client.service';
 import { StorageRepository } from './storage.repository';
 import {
-  CreateRenderArtifactParams,
+  CreateStoredAssetParams,
   DownloadedObject,
   StoredObjectRecord,
   StoredObjectDetailsRecord,
@@ -90,50 +90,76 @@ export class StorageService {
     };
   }
 
-  async createRenderArtifact(
-    params: CreateRenderArtifactParams,
-  ): Promise<StoredObjectResponse> {
-    const bucket = process.env.S3_BUCKET ?? 'moments-dev';
-    const htmlBuffer = Buffer.from(params.html, 'utf8');
-    const checksumSha256 = createHash('sha256')
-      .update(htmlBuffer)
-      .digest('hex');
-
-    const uploadParams: UploadObjectParams = {
-      bucket,
-      objectKey: this.buildRenderArtifactObjectKey(
-        params.userId,
-        params.previewId,
-        params.templateSlug,
-      ),
-      body: htmlBuffer,
+  async createRenderArtifact(params: {
+    artifactId: string;
+    userId: string;
+    previewId: string;
+    templateSlug: string;
+    html: string;
+  }): Promise<StoredObjectResponse> {
+    return this.createStoredAsset({
+      objectId: params.artifactId,
+      userId: params.userId,
+      templateSlug: params.templateSlug,
+      parentId: params.previewId,
+      originalFilename: `${params.templateSlug}-preview.html`,
+      body: Buffer.from(params.html, 'utf8'),
       contentType: 'text/html; charset=utf-8',
-    };
+      kind: 'RENDER_ARTIFACT',
+    });
+  }
 
-    try {
-      await this.storageClientService.uploadObject(uploadParams);
-    } catch (error) {
-      throw new ServiceUnavailableException(
-        error instanceof Error
-          ? `Render artifact upload failed: ${error.message}`
-          : 'Render artifact upload failed.',
-      );
-    }
+  async registerPrintableAsset(params: {
+    objectId: string;
+    userId: string;
+    orderId: string;
+    templateSlug: string;
+    sizeBytes: number;
+    checksumSha256: string;
+  }): Promise<StoredObjectResponse> {
+    const bucket = process.env.S3_BUCKET ?? 'moments-dev';
+    const uploadPlan = this.getPrintableAssetUploadPlan(
+      params.userId,
+      params.orderId,
+      params.templateSlug,
+    );
 
     const object = await this.storageRepository.createStoredObject({
-      id: params.artifactId,
+      id: params.objectId,
       userId: params.userId,
-      kind: 'RENDER_ARTIFACT',
+      kind: 'PRINTABLE_ASSET',
       bucket,
-      objectKey: uploadParams.objectKey,
-      originalFilename: `${params.templateSlug}-preview.html`,
-      contentType: uploadParams.contentType,
-      sizeBytes: htmlBuffer.length,
-      checksumSha256,
+      objectKey: uploadPlan.objectKey,
+      originalFilename: uploadPlan.originalFilename,
+      contentType: 'application/pdf',
+      sizeBytes: params.sizeBytes,
+      checksumSha256: params.checksumSha256,
     });
 
     return {
       object: this.toStoredObjectView(object),
+    };
+  }
+
+  getPrintableAssetUploadPlan(
+    userId: string,
+    orderId: string,
+    templateSlug: string,
+  ): {
+    bucket: string;
+    objectKey: string;
+    originalFilename: string;
+    contentType: 'application/pdf';
+  } {
+    return {
+      bucket: process.env.S3_BUCKET ?? 'moments-dev',
+      objectKey: this.buildPrintableAssetObjectKey(
+        userId,
+        orderId,
+        templateSlug,
+      ),
+      originalFilename: `${templateSlug}-printable.pdf`,
+      contentType: 'application/pdf',
     };
   }
 
@@ -210,6 +236,66 @@ export class StorageService {
     templateSlug: string,
   ): string {
     return `render-previews/users/${userId}/${templateSlug}/${previewId}.html`;
+  }
+
+  private buildPrintableAssetObjectKey(
+    userId: string,
+    orderId: string,
+    templateSlug: string,
+  ): string {
+    return `printable-assets/users/${userId}/${templateSlug}/${orderId}.pdf`;
+  }
+
+  private async createStoredAsset(
+    params: CreateStoredAssetParams,
+  ): Promise<StoredObjectResponse> {
+    const bucket = process.env.S3_BUCKET ?? 'moments-dev';
+    const checksumSha256 = createHash('sha256')
+      .update(params.body)
+      .digest('hex');
+    const uploadParams: UploadObjectParams = {
+      bucket,
+      objectKey:
+        params.kind === 'RENDER_ARTIFACT'
+          ? this.buildRenderArtifactObjectKey(
+              params.userId,
+              params.parentId,
+              params.templateSlug,
+            )
+          : this.buildPrintableAssetObjectKey(
+              params.userId,
+              params.parentId,
+              params.templateSlug,
+            ),
+      body: params.body,
+      contentType: params.contentType,
+    };
+
+    try {
+      await this.storageClientService.uploadObject(uploadParams);
+    } catch (error) {
+      throw new ServiceUnavailableException(
+        error instanceof Error
+          ? `${params.kind === 'RENDER_ARTIFACT' ? 'Render artifact' : 'Printable asset'} upload failed: ${error.message}`
+          : `${params.kind === 'RENDER_ARTIFACT' ? 'Render artifact' : 'Printable asset'} upload failed.`,
+      );
+    }
+
+    const object = await this.storageRepository.createStoredObject({
+      id: params.objectId,
+      userId: params.userId,
+      kind: params.kind,
+      bucket,
+      objectKey: uploadParams.objectKey,
+      originalFilename: params.originalFilename,
+      contentType: params.contentType,
+      sizeBytes: params.body.length,
+      checksumSha256,
+    });
+
+    return {
+      object: this.toStoredObjectView(object),
+    };
   }
 
   private async getOwnedStoredObject(

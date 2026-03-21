@@ -1,4 +1,7 @@
-export type StoredObjectKindValue = 'PHOTO_UPLOAD' | 'RENDER_ARTIFACT';
+export type StoredObjectKindValue =
+  | 'PHOTO_UPLOAD'
+  | 'RENDER_ARTIFACT'
+  | 'PRINTABLE_ASSET';
 
 export interface StoredObjectView {
   id: string;

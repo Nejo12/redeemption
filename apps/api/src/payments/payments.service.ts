@@ -54,6 +54,12 @@ export class PaymentsService {
       );
     }
 
+    if (order.printableAssetStatus !== 'READY') {
+      throw new BadRequestException(
+        'Checkout requires a ready printable asset for the order.',
+      );
+    }
+
     const pricingResponse = await this.pricingService.getOrderPricing(
       userId,
       orderId,

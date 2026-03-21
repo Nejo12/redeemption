@@ -53,12 +53,15 @@ export type StoredObjectDetailsRecord = Pick<
   | 'updatedAt'
 >;
 
-export type CreateRenderArtifactParams = {
-  artifactId: string;
+export type CreateStoredAssetParams = {
+  objectId: string;
   userId: string;
-  previewId: string;
   templateSlug: string;
-  html: string;
+  parentId: string;
+  originalFilename: string;
+  body: Buffer;
+  contentType: string;
+  kind: StoredObjectKind;
 };
 
 export type DownloadObjectParams = {

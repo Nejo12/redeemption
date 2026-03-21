@@ -757,6 +757,17 @@ export function MomentsClient() {
                         <p className="text-sm leading-7 text-foreground/68">
                           Order {relatedOrder.id} · {relatedOrder.status}
                         </p>
+                        <p className="text-sm leading-7 text-foreground/68">
+                          Printable asset · {relatedOrder.printableAssetStatus}
+                          {relatedOrder.printableAssetGeneratedAt
+                            ? ` at ${formatDateTime(relatedOrder.printableAssetGeneratedAt)}`
+                            : ""}
+                        </p>
+                        {relatedOrder.printableAssetError ? (
+                          <p className="text-sm leading-7 text-red-700">
+                            Printable asset error: {relatedOrder.printableAssetError}
+                          </p>
+                        ) : null}
 
                         {relatedOrder.status === "AWAITING_PAYMENT" ||
                         relatedOrder.status === "PAYMENT_FAILED" ? (
@@ -794,7 +805,9 @@ export function MomentsClient() {
                                 <button
                                   type="button"
                                   className="inline-flex min-h-10 items-center justify-center rounded-full bg-accent px-4 py-2 text-xs font-semibold tracking-[0.12em] text-white uppercase transition-colors hover:bg-accent-strong disabled:cursor-not-allowed disabled:bg-accent/45"
-                                  disabled={isSubmitting}
+                                  disabled={
+                                    isSubmitting || relatedOrder.printableAssetStatus !== "READY"
+                                  }
                                   onClick={() => handleCheckout(relatedOrder.id)}
                                 >
                                   Proceed to checkout
@@ -825,6 +838,11 @@ export function MomentsClient() {
                                   ))}
                                 </div>
                               </div>
+                            ) : null}
+                            {relatedOrder.printableAssetStatus !== "READY" ? (
+                              <p className="text-sm leading-7 text-foreground/68">
+                                Wait for the immutable printable asset before starting checkout.
+                              </p>
                             ) : null}
                           </div>
                         ) : null}

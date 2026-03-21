@@ -14,10 +14,40 @@ type RenderPreviewContent = {
 };
 
 type BuildRenderPreviewHtmlParams = {
-  template: TemplateRecord;
+  template: RenderSurfaceTemplate;
   content: RenderPreviewContent;
   photoDataUrl: string | null;
   photoFit: RenderPhotoFitValue | null;
+};
+
+type BuildPrintableAssetHtmlParams = {
+  template: PrintableAssetTemplateSnapshot;
+  headline: string;
+  message: string;
+  photoDataUrl: string | null;
+  photoFit: RenderPhotoFitValue | null;
+};
+
+export type RenderSurfaceTemplate = Pick<
+  TemplateRecord,
+  | 'name'
+  | 'previewLabel'
+  | 'previewHeadline'
+  | 'previewMessage'
+  | 'accentHex'
+  | 'surfaceHex'
+  | 'textHex'
+  | 'fields'
+>;
+
+export type PrintableAssetTemplateSnapshot = {
+  name: string;
+  previewLabel: string;
+  widthMm: number;
+  heightMm: number;
+  accentHex: string;
+  surfaceHex: string;
+  textHex: string;
 };
 
 export function buildRenderPreviewContent(
@@ -37,18 +67,20 @@ export function buildRenderPreviewContent(
 export function buildRenderPreviewHtml(
   params: BuildRenderPreviewHtmlParams,
 ): string {
-  const objectFit = params.photoFit === 'COVER' ? 'cover' : 'contain';
-  const accent = escapeHtml(params.template.accentHex);
-  const surface = escapeHtml(params.template.surfaceHex);
-  const text = escapeHtml(params.template.textHex);
-  const headline = escapeHtml(params.content.headline);
-  const message = escapeHtml(params.content.message).replace(/\n/g, '<br />');
+  const { accent, surface, text, headline, message, photoMarkup } =
+    buildRenderVisualPrimitives({
+      accentHex: params.template.accentHex,
+      surfaceHex: params.template.surfaceHex,
+      textHex: params.template.textHex,
+      headline: params.content.headline,
+      message: params.content.message,
+      photoDataUrl: params.photoDataUrl,
+      photoFit: params.photoFit,
+      emptyPhotoLabel: 'Awaiting photo upload',
+    });
   const fieldSummaries = params.content.fieldSummaries
     .map((summary) => `<li>${escapeHtml(summary)}</li>`)
     .join('');
-  const photoMarkup = params.photoDataUrl
-    ? `<img src="${params.photoDataUrl}" alt="Uploaded preview asset" style="width: 100%; height: 100%; object-fit: ${objectFit};" />`
-    : '<div style="display:flex;height:100%;align-items:center;justify-content:center;font-size:14px;letter-spacing:0.08em;text-transform:uppercase;color:rgba(43,31,27,0.55);">Awaiting photo upload</div>';
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -89,6 +121,68 @@ export function buildRenderPreviewHtml(
             </div>
           </div>
         </div>
+      </section>
+    </main>
+  </body>
+</html>`;
+}
+
+export function buildPrintableAssetHtml(
+  params: BuildPrintableAssetHtmlParams,
+): string {
+  const { accent, surface, text, headline, message, photoMarkup, objectFit } =
+    buildRenderVisualPrimitives({
+      accentHex: params.template.accentHex,
+      surfaceHex: params.template.surfaceHex,
+      textHex: params.template.textHex,
+      headline: params.headline,
+      message: params.message,
+      photoDataUrl: params.photoDataUrl,
+      photoFit: params.photoFit,
+      emptyPhotoLabel: 'Awaiting approved photo',
+    });
+
+  return `<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${escapeHtml(params.template.name)} printable asset</title>
+    <style>
+      @page {
+        size: ${params.template.widthMm}mm ${params.template.heightMm}mm;
+        margin: 0;
+      }
+
+      html, body {
+        margin: 0;
+        padding: 0;
+        width: ${params.template.widthMm}mm;
+        height: ${params.template.heightMm}mm;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+    </style>
+  </head>
+  <body style="font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#ffffff;color:${text};">
+    <main style="width:${params.template.widthMm}mm;height:${params.template.heightMm}mm;padding:8mm;background:${surface};display:grid;grid-template-columns:0.92fr 1.08fr;gap:6mm;">
+      <section style="height:100%;overflow:hidden;border-radius:6mm;border:0.35mm solid rgba(43,31,27,0.1);background:rgba(255,255,255,0.72);">
+        <div style="width:100%;height:100%;overflow:hidden;">
+          ${photoMarkup.replace(
+            `object-fit: ${objectFit};`,
+            `object-fit: ${objectFit};display:block;`,
+          )}
+        </div>
+      </section>
+      <section style="display:flex;flex-direction:column;justify-content:space-between;border-radius:6mm;border:0.35mm solid rgba(43,31,27,0.1);background:rgba(255,255,255,0.66);padding:7mm;">
+        <div>
+          <p style="margin:0 0 4mm;font-size:3mm;font-weight:700;letter-spacing:0.24em;text-transform:uppercase;color:${accent};">${escapeHtml(params.template.previewLabel)}</p>
+          <h1 style="margin:0;font-size:11mm;line-height:0.92;letter-spacing:-0.06em;">${headline}</h1>
+          <div style="margin-top:5mm;height:0.5mm;width:16mm;border-radius:999px;background:${accent};"></div>
+        </div>
+        <p style="margin:0;font-size:4.2mm;line-height:1.62;color:rgba(43,31,27,0.84);">${message}</p>
       </section>
     </main>
   </body>
@@ -144,6 +238,37 @@ function buildFieldSummary(
   }
 
   return `${field.label}${field.required ? ' (required)' : ' (optional)'}`;
+}
+
+function buildRenderVisualPrimitives(params: {
+  accentHex: string;
+  surfaceHex: string;
+  textHex: string;
+  headline: string;
+  message: string;
+  photoDataUrl: string | null;
+  photoFit: RenderPhotoFitValue | null;
+  emptyPhotoLabel: string;
+}) {
+  const objectFit = params.photoFit === 'COVER' ? 'cover' : 'contain';
+  const accent = escapeHtml(params.accentHex);
+  const surface = escapeHtml(params.surfaceHex);
+  const text = escapeHtml(params.textHex);
+  const headline = escapeHtml(params.headline);
+  const message = escapeHtml(params.message).replace(/\n/g, '<br />');
+  const photoMarkup = params.photoDataUrl
+    ? `<img src="${params.photoDataUrl}" alt="Uploaded preview asset" style="width: 100%; height: 100%; object-fit: ${objectFit};" />`
+    : `<div style="display:flex;height:100%;align-items:center;justify-content:center;font-size:14px;letter-spacing:0.08em;text-transform:uppercase;color:rgba(43,31,27,0.55);">${escapeHtml(params.emptyPhotoLabel)}</div>`;
+
+  return {
+    objectFit,
+    accent,
+    surface,
+    text,
+    headline,
+    message,
+    photoMarkup,
+  };
 }
 
 function escapeHtml(value: string): string {

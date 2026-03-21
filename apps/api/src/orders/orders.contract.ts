@@ -12,6 +12,12 @@ export type OrderStatusValue =
   | 'FULFILLED'
   | 'CANCELLED';
 
+export type PrintableAssetStatusValue =
+  | 'PENDING'
+  | 'PROCESSING'
+  | 'READY'
+  | 'FAILED';
+
 export interface OrderView {
   id: string;
   draftId: string;
@@ -21,8 +27,19 @@ export interface OrderView {
   templateId: string;
   templateSlug: string;
   templateName: string;
+  templateWidthMm: number;
+  templateHeightMm: number;
+  templateOrientation: 'PORTRAIT' | 'LANDSCAPE';
+  templatePreviewLabel: string;
+  templateAccentHex: string;
+  templateSurfaceHex: string;
+  templateTextHex: string;
   renderPreviewId: string;
   artifactObjectId: string;
+  printableAssetObjectId: string | null;
+  printableAssetStatus: PrintableAssetStatusValue;
+  printableAssetGeneratedAt: string | null;
+  printableAssetError: string | null;
   photoObjectId: string | null;
   status: OrderStatusValue;
   shippingType: ShippingTypeValue | null;
@@ -51,4 +68,31 @@ export interface OrderResponse {
 
 export interface OrderListResponse {
   orders: OrderView[];
+}
+
+export interface PrintableAssetJobView {
+  orderId: string;
+  assetObjectId: string;
+  bucket: string;
+  objectKey: string;
+  originalFilename: string;
+  contentType: 'application/pdf';
+  widthMm: number;
+  heightMm: number;
+  html: string;
+}
+
+export interface ClaimPrintableAssetsResponse {
+  claimedOrders: number;
+  jobs: PrintableAssetJobView[];
+}
+
+export interface CompletePrintableAssetRequestBody {
+  assetObjectId: string;
+  sizeBytes: number;
+  checksumSha256: string;
+}
+
+export interface FailPrintableAssetRequestBody {
+  errorMessage: string;
 }

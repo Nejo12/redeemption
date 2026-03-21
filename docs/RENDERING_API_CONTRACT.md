@@ -61,4 +61,5 @@ Notes:
 
 - The response includes inline HTML so the web editor can display the server preview immediately.
 - The same HTML is also written to object storage as a `RENDER_ARTIFACT`.
-- This slice stops at HTML preview persistence. PDF generation and queue-backed worker rendering land in the next rendering/worker step.
+- The preview artifact remains approval-focused and editable.
+- Immutable order PDFs are generated later from the order snapshot, not by mutating this preview artifact in place.

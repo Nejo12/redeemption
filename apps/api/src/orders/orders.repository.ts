@@ -4,10 +4,12 @@ import {
   CreateOrderParams,
   DraftOrderConversionRecord,
   OrderRecord,
+  PrintableAssetJobRecord,
 } from './orders.types';
 
 const orderSelect = {
   id: true,
+  userId: true,
   draftId: true,
   contactId: true,
   contactFirstName: true,
@@ -15,8 +17,19 @@ const orderSelect = {
   templateId: true,
   templateSlug: true,
   templateName: true,
+  templateWidthMm: true,
+  templateHeightMm: true,
+  templateOrientation: true,
+  templatePreviewLabel: true,
+  templateAccentHex: true,
+  templateSurfaceHex: true,
+  templateTextHex: true,
   renderPreviewId: true,
   artifactObjectId: true,
+  printableAssetObjectId: true,
+  printableAssetStatus: true,
+  printableAssetGeneratedAt: true,
+  printableAssetError: true,
   photoObjectId: true,
   status: true,
   shippingType: true,
@@ -63,6 +76,15 @@ export class OrdersRepository {
     });
   }
 
+  findById(orderId: string): Promise<OrderRecord | null> {
+    return this.prisma.order.findUnique({
+      where: {
+        id: orderId,
+      },
+      select: orderSelect,
+    });
+  }
+
   findDraftForConversion(
     userId: string,
     draftId: string,
@@ -95,6 +117,13 @@ export class OrdersRepository {
             id: true,
             slug: true,
             name: true,
+            widthMm: true,
+            heightMm: true,
+            orientation: true,
+            previewLabel: true,
+            accentHex: true,
+            surfaceHex: true,
+            textHex: true,
           },
         },
         renderPreview: {
@@ -114,6 +143,83 @@ export class OrdersRepository {
         fieldValues: params.fieldValues,
       },
       select: orderSelect,
+    });
+  }
+
+  listOrdersPendingPrintableAssets(
+    limit: number,
+  ): Promise<PrintableAssetJobRecord[]> {
+    return this.prisma.order.findMany({
+      where: {
+        printableAssetStatus: 'PENDING',
+      },
+      orderBy: [{ createdAt: 'asc' }],
+      take: limit,
+      select: {
+        id: true,
+        userId: true,
+        templateSlug: true,
+        templateName: true,
+        templateWidthMm: true,
+        templateHeightMm: true,
+        templatePreviewLabel: true,
+        templateAccentHex: true,
+        templateSurfaceHex: true,
+        templateTextHex: true,
+        headline: true,
+        message: true,
+        photoObjectId: true,
+        photoFit: true,
+      },
+    });
+  }
+
+  async claimOrderPrintableAsset(orderId: string): Promise<boolean> {
+    const result = await this.prisma.order.updateMany({
+      where: {
+        id: orderId,
+        printableAssetStatus: 'PENDING',
+      },
+      data: {
+        printableAssetStatus: 'PROCESSING',
+        printableAssetError: null,
+      },
+    });
+
+    return result.count === 1;
+  }
+
+  async markPrintableAssetReady(params: {
+    orderId: string;
+    printableAssetObjectId: string;
+  }): Promise<void> {
+    await this.prisma.order.updateMany({
+      where: {
+        id: params.orderId,
+        printableAssetStatus: 'PROCESSING',
+      },
+      data: {
+        printableAssetObjectId: params.printableAssetObjectId,
+        printableAssetStatus: 'READY',
+        printableAssetGeneratedAt: new Date(),
+        printableAssetError: null,
+      },
+    });
+  }
+
+  async markPrintableAssetFailed(params: {
+    orderId: string;
+    errorMessage: string;
+  }): Promise<void> {
+    await this.prisma.order.updateMany({
+      where: {
+        id: params.orderId,
+        printableAssetStatus: 'PROCESSING',
+      },
+      data: {
+        printableAssetStatus: 'FAILED',
+        printableAssetError: params.errorMessage,
+      },
     });
   }
 }

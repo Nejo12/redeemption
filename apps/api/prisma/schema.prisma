@@ -52,6 +52,7 @@ enum TemplateFieldKind {
 enum StoredObjectKind {
   PHOTO_UPLOAD
   RENDER_ARTIFACT
+  PRINTABLE_ASSET
 }
 
 enum RenderPhotoFit {
@@ -98,6 +99,13 @@ enum ShippingType {
 enum ShippingZone {
   DOMESTIC
   INTERNATIONAL
+}
+
+enum PrintableAssetStatus {
+  PENDING
+  PROCESSING
+  READY
+  FAILED
 }
 
 model User {
@@ -261,6 +269,7 @@ model StoredObject {
   momentRulePhotos       MomentRule[]    @relation("MomentRulePhoto")
   orderArtifacts         Order[]         @relation("OrderArtifact")
   orderPhotos            Order[]         @relation("OrderPhoto")
+  orderPrintableAssets   Order[]         @relation("OrderPrintableAsset")
   renderPreviewArtifacts RenderPreview[] @relation("RenderPreviewArtifact")
   renderPreviewPhotos    RenderPreview[] @relation("RenderPreviewPhoto")
   user             User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
@@ -358,8 +367,19 @@ model Order {
   templateId        String
   templateSlug      String
   templateName      String
+  templateWidthMm   Int
+  templateHeightMm  Int
+  templateOrientation TemplateOrientation
+  templatePreviewLabel String
+  templateAccentHex String
+  templateSurfaceHex String
+  templateTextHex   String
   renderPreviewId   String
   artifactObjectId  String
+  printableAssetObjectId String?  @unique
+  printableAssetStatus   PrintableAssetStatus @default(PENDING)
+  printableAssetGeneratedAt DateTime?
+  printableAssetError String?
   photoObjectId     String?
   status            OrderStatus    @default(AWAITING_PAYMENT)
   shippingType      ShippingType?
@@ -381,11 +401,13 @@ model Order {
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
   artifactObject    StoredObject   @relation("OrderArtifact", fields: [artifactObjectId], references: [id], onDelete: Restrict)
+  printableAssetObject StoredObject? @relation("OrderPrintableAsset", fields: [printableAssetObjectId], references: [id], onDelete: SetNull)
   photoObject       StoredObject?  @relation("OrderPhoto", fields: [photoObjectId], references: [id], onDelete: SetNull)
   user              User           @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, status, createdAt])
   @@index([artifactObjectId])
+  @@index([userId, printableAssetStatus, createdAt])
 }
 
 model PaymentWebhookEvent {
