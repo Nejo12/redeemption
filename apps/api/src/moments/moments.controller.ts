@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  Patch,
   Post,
   Req,
   UseGuards,
@@ -11,12 +12,17 @@ import {
 import { SessionAuthGuard } from '../auth/session-auth.guard';
 import type { AuthenticatedRequest } from '../auth/session-auth.guard';
 import {
+  DraftResponse,
   DraftListResponse,
   MomentRuleListResponse,
   MomentRuleResponse,
 } from './moments.contract';
 import { MomentsService } from './moments.service';
-import { parseCreateMomentRuleBody } from './payload-parsers';
+import {
+  parseCreateMomentRuleBody,
+  parseSnoozeDraftBody,
+  parseUpdateDraftBody,
+} from './payload-parsers';
 
 @Controller()
 @UseGuards(SessionAuthGuard)
@@ -55,5 +61,47 @@ export class MomentsController {
   @Get('drafts')
   listDrafts(@Req() request: AuthenticatedRequest): Promise<DraftListResponse> {
     return this.momentsService.listDrafts(request.authUser!.sub);
+  }
+
+  @Patch('drafts/:draftId')
+  updateDraft(
+    @Req() request: AuthenticatedRequest,
+    @Param('draftId') draftId: string,
+    @Body() body: unknown,
+  ): Promise<DraftResponse> {
+    return this.momentsService.updateDraft(
+      request.authUser!.sub,
+      draftId,
+      parseUpdateDraftBody(body),
+    );
+  }
+
+  @Post('drafts/:draftId/approve')
+  approveDraft(
+    @Req() request: AuthenticatedRequest,
+    @Param('draftId') draftId: string,
+  ): Promise<DraftResponse> {
+    return this.momentsService.approveDraft(request.authUser!.sub, draftId);
+  }
+
+  @Post('drafts/:draftId/skip')
+  skipDraft(
+    @Req() request: AuthenticatedRequest,
+    @Param('draftId') draftId: string,
+  ): Promise<DraftResponse> {
+    return this.momentsService.skipDraft(request.authUser!.sub, draftId);
+  }
+
+  @Post('drafts/:draftId/snooze')
+  snoozeDraft(
+    @Req() request: AuthenticatedRequest,
+    @Param('draftId') draftId: string,
+    @Body() body: unknown,
+  ): Promise<DraftResponse> {
+    return this.momentsService.snoozeDraft(
+      request.authUser!.sub,
+      draftId,
+      parseSnoozeDraftBody(body),
+    );
   }
 }

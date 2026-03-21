@@ -42,12 +42,52 @@ Rules:
 
 ## `GET /drafts`
 
-Returns the current user's scheduled and ready-for-review drafts.
+Returns the current user's scheduled, ready-for-review, approved, and skipped drafts.
 
 Behavior:
 
 - the API reports persisted draft state only; it does not materialize due drafts during read requests
 - a background worker claims due drafts, renders previews, and transitions them from `SCHEDULED` to `READY_FOR_REVIEW`
+
+## `PATCH /drafts/:draftId`
+
+Updates one review-ready draft and regenerates its render preview safely.
+
+Behavior:
+
+- only drafts in `READY_FOR_REVIEW` can be edited
+- the request uses template field values plus optional `photoObjectId` and `photoFit`
+- a successful edit keeps the draft in `READY_FOR_REVIEW` and replaces its preview reference
+
+## `POST /drafts/:draftId/approve`
+
+Approves one review-ready draft.
+
+Behavior:
+
+- transitions the current draft to `APPROVED`
+- advances recurring moment rules to their next occurrence
+- seeds the next scheduled draft for recurring rules
+
+## `POST /drafts/:draftId/skip`
+
+Skips one review-ready draft.
+
+Behavior:
+
+- transitions the current draft to `SKIPPED`
+- advances recurring moment rules to their next occurrence
+- seeds the next scheduled draft for recurring rules
+
+## `POST /drafts/:draftId/snooze`
+
+Snoozes one review-ready draft back into the scheduled queue.
+
+Behavior:
+
+- transitions the current draft from `READY_FOR_REVIEW` back to `SCHEDULED`
+- clears the existing preview reference so the background worker re-materializes it later
+- requires a future `draftReadyAt` that is earlier than the send date
 
 ## `POST /internal/drafts/materialize-due`
 

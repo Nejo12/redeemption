@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 import {
   CreateDraftParams,
+  DraftDecisionContext,
   CreateMomentRuleParams,
   DraftDueRecord,
   DraftRecord,
@@ -229,6 +230,108 @@ export class MomentsRepository {
     });
   }
 
+  findDraftByUserId(
+    userId: string,
+    draftId: string,
+  ): Promise<DraftRecord | null> {
+    return this.prisma.draft.findFirst({
+      where: {
+        id: draftId,
+        userId,
+      },
+      select: draftSelect,
+    });
+  }
+
+  async findDraftDecisionContext(
+    userId: string,
+    draftId: string,
+  ): Promise<DraftDecisionContext | null> {
+    const draft = await this.prisma.draft.findFirst({
+      where: {
+        id: draftId,
+        userId,
+      },
+      select: draftSelect,
+    });
+
+    if (!draft) {
+      return null;
+    }
+
+    const momentRule = await this.prisma.momentRule.findFirst({
+      where: {
+        id: draft.momentRuleId,
+        userId,
+      },
+      select: {
+        id: true,
+        eventType: true,
+        leadTimeDays: true,
+        deliveryPreference: true,
+        approvalMode: true,
+        messageTemplate: true,
+        photoObjectId: true,
+      },
+    });
+
+    if (!momentRule) {
+      return null;
+    }
+
+    const [user, template] = await Promise.all([
+      this.prisma.user.findFirst({
+        where: {
+          id: userId,
+        },
+        select: {
+          id: true,
+          displayName: true,
+          profile: {
+            select: {
+              fullName: true,
+            },
+          },
+        },
+      }),
+      this.prisma.template.findFirst({
+        where: {
+          id: draft.template.id,
+        },
+        select: {
+          id: true,
+          slug: true,
+          name: true,
+          fields: {
+            orderBy: {
+              position: 'asc',
+            },
+            select: {
+              key: true,
+              label: true,
+              kind: true,
+              required: true,
+              maxLength: true,
+              position: true,
+            },
+          },
+        },
+      }),
+    ]);
+
+    if (!user || !template) {
+      return null;
+    }
+
+    return {
+      user,
+      contact: draft.contact,
+      template,
+      momentRule,
+      draft,
+    };
+  }
+
   listDueScheduledDrafts(limit: number): Promise<DraftDueRecord[]> {
     return this.prisma.draft.findMany({
       where: {
@@ -286,6 +389,89 @@ export class MomentsRepository {
           status: 'READY_FOR_REVIEW',
           renderPreviewId,
         },
+      })
+      .then(() => undefined);
+  }
+
+  updateDraftForReview(
+    draftId: string,
+    params: {
+      headline: string;
+      message: string;
+      fieldValues: Record<string, string>;
+      photoObjectId: string | null;
+      photoFit: CreateDraftParams['photoFit'];
+      renderPreviewId: string;
+    },
+  ): Promise<DraftRecord> {
+    return this.prisma.draft.update({
+      where: {
+        id: draftId,
+      },
+      data: {
+        status: 'READY_FOR_REVIEW',
+        headline: params.headline,
+        message: params.message,
+        fieldValues: params.fieldValues,
+        photoObjectId: params.photoObjectId,
+        photoFit: params.photoFit,
+        renderPreviewId: params.renderPreviewId,
+      },
+      select: draftSelect,
+    });
+  }
+
+  snoozeDraft(draftId: string, draftReadyAt: Date): Promise<DraftRecord> {
+    return this.prisma.draft.update({
+      where: {
+        id: draftId,
+      },
+      data: {
+        status: 'SCHEDULED',
+        draftReadyAt,
+        renderPreviewId: null,
+      },
+      select: draftSelect,
+    });
+  }
+
+  finalizeDraftDecision(params: {
+    draftId: string;
+    finalStatus: 'APPROVED' | 'SKIPPED';
+    momentRuleId: string;
+    nextOccurrenceAt: Date | null;
+    nextDraftAt: Date | null;
+    nextDraft: CreateDraftParams | null;
+  }): Promise<void> {
+    return this.prisma
+      .$transaction(async (transaction) => {
+        await transaction.draft.update({
+          where: {
+            id: params.draftId,
+          },
+          data: {
+            status: params.finalStatus,
+          },
+        });
+
+        await transaction.momentRule.update({
+          where: {
+            id: params.momentRuleId,
+          },
+          data: {
+            nextOccurrenceAt: params.nextOccurrenceAt,
+            nextDraftAt: params.nextDraftAt,
+          },
+        });
+
+        if (params.nextDraft) {
+          await transaction.draft.create({
+            data: {
+              ...params.nextDraft,
+              fieldValues: params.nextDraft.fieldValues,
+            },
+          });
+        }
       })
       .then(() => undefined);
   }

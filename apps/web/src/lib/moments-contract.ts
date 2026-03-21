@@ -1,7 +1,12 @@
 export type MomentEventTypeValue = "CONTACT_BIRTHDAY" | "ONE_OFF_DATE";
 export type MomentDeliveryPreferenceValue = "ARRIVE_BY" | "SHIP_ON";
 export type MomentApprovalModeValue = "ALWAYS_ASK";
-export type DraftStatusValue = "SCHEDULED" | "READY_FOR_REVIEW";
+export type DraftStatusValue =
+  | "SCHEDULED"
+  | "PROCESSING"
+  | "READY_FOR_REVIEW"
+  | "APPROVED"
+  | "SKIPPED";
 export type RenderPhotoFitValue = "FIT" | "COVER";
 
 export interface MomentContactSummaryView {
@@ -67,6 +72,10 @@ export interface DraftListResponse {
   drafts: DraftView[];
 }
 
+export interface DraftResponse {
+  draft: DraftView;
+}
+
 export interface CreateMomentRuleRequestBody {
   name: string;
   contactId: string;
@@ -79,4 +88,14 @@ export interface CreateMomentRuleRequestBody {
   messageTemplate: string;
   photoObjectId: string | null;
   photoFit: RenderPhotoFitValue | null;
+}
+
+export interface UpdateDraftRequestBody {
+  fieldValues: Record<string, string>;
+  photoObjectId: string | null;
+  photoFit: RenderPhotoFitValue | null;
+}
+
+export interface SnoozeDraftRequestBody {
+  draftReadyAt: string;
 }

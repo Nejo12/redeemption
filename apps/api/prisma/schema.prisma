@@ -77,6 +77,8 @@ enum DraftStatus {
   SCHEDULED
   PROCESSING
   READY_FOR_REVIEW
+  APPROVED
+  SKIPPED
 }
 
 model User {

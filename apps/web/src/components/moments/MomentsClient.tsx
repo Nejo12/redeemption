@@ -9,9 +9,19 @@ import { StatusPill } from "@/components/ui/StatusPill";
 import { useStoredAuthSession } from "@/lib/auth-session";
 import { listContacts } from "@/lib/contacts-api";
 import { ContactView } from "@/lib/contacts-contract";
-import { createMomentRule, deleteMomentRule, listDrafts, listMoments } from "@/lib/moments-api";
+import {
+  approveDraft,
+  createMomentRule,
+  deleteMomentRule,
+  listDrafts,
+  listMoments,
+  skipDraft,
+  snoozeDraft,
+  updateDraft,
+} from "@/lib/moments-api";
 import {
   CreateMomentRuleRequestBody,
+  DraftStatusValue,
   DraftView,
   MomentEventTypeValue,
   MomentRuleView,
@@ -22,6 +32,13 @@ import { StoredObjectView } from "@/lib/storage-contract";
 import { listTemplates } from "@/lib/templates-api";
 import { TemplateView } from "@/lib/templates-contract";
 import { templateVariableTokens } from "@/lib/template-editor";
+
+type DraftEditorState = {
+  fieldValues: Record<string, string>;
+  photoObjectId: string | null;
+  photoFit: RenderPhotoFitValue | null;
+  snoozeAt: string;
+};
 
 const defaultMomentForm: CreateMomentRuleRequestBody = {
   name: "",
@@ -49,6 +66,8 @@ export function MomentsClient() {
   const [moments, setMoments] = useState<MomentRuleView[]>([]);
   const [drafts, setDrafts] = useState<DraftView[]>([]);
   const [uploads, setUploads] = useState<StoredObjectView[]>([]);
+  const [draftEditors, setDraftEditors] = useState<Record<string, DraftEditorState>>({});
+  const [activeDraftId, setActiveDraftId] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [uploadMessage, setUploadMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -100,6 +119,33 @@ export function MomentsClient() {
     setForm((current) => ({
       ...current,
       [key]: value,
+    }));
+  }
+
+  function updateDraftEditor(
+    draftId: string,
+    updater: (current: DraftEditorState) => DraftEditorState,
+  ) {
+    setDraftEditors((current) => {
+      const draft = drafts.find((entry) => entry.id === draftId);
+      const nextCurrent = current[draftId] ?? (draft ? buildDraftEditorState(draft) : null);
+
+      if (!nextCurrent) {
+        return current;
+      }
+
+      return {
+        ...current,
+        [draftId]: updater(nextCurrent),
+      };
+    });
+  }
+
+  function openDraftEditor(draft: DraftView) {
+    setActiveDraftId(draft.id);
+    setDraftEditors((current) => ({
+      ...current,
+      [draft.id]: current[draft.id] ?? buildDraftEditorState(draft),
     }));
   }
 
@@ -200,6 +246,104 @@ export function MomentsClient() {
         setErrorMessage(
           error instanceof Error ? error.message : "Unable to delete the moment rule.",
         );
+      }
+    });
+  }
+
+  function handleApproveDraft(draftId: string) {
+    if (!accessToken) {
+      return;
+    }
+
+    setStatusMessage(null);
+    setErrorMessage(null);
+
+    startSubmitTransition(async () => {
+      try {
+        const response = await approveDraft(accessToken, draftId);
+        setStatusMessage(`Approved draft "${response.draft.headline}".`);
+        setActiveDraftId(null);
+        refreshWorkspace();
+      } catch (error) {
+        setErrorMessage(error instanceof Error ? error.message : "Unable to approve the draft.");
+      }
+    });
+  }
+
+  function handleSkipDraft(draftId: string) {
+    if (!accessToken) {
+      return;
+    }
+
+    setStatusMessage(null);
+    setErrorMessage(null);
+
+    startSubmitTransition(async () => {
+      try {
+        const response = await skipDraft(accessToken, draftId);
+        setStatusMessage(`Skipped draft "${response.draft.headline}".`);
+        setActiveDraftId(null);
+        refreshWorkspace();
+      } catch (error) {
+        setErrorMessage(error instanceof Error ? error.message : "Unable to skip the draft.");
+      }
+    });
+  }
+
+  function handleSnoozeDraft(draftId: string) {
+    if (!accessToken) {
+      return;
+    }
+
+    const editor = draftEditors[draftId];
+    if (!editor?.snoozeAt) {
+      setErrorMessage("Choose a new review time before snoozing the draft.");
+      return;
+    }
+
+    setStatusMessage(null);
+    setErrorMessage(null);
+
+    startSubmitTransition(async () => {
+      try {
+        const response = await snoozeDraft(accessToken, draftId, {
+          draftReadyAt: new Date(editor.snoozeAt).toISOString(),
+        });
+        setStatusMessage(
+          `Snoozed "${response.draft.headline}" until ${formatDateTime(response.draft.draftReadyAt)}.`,
+        );
+        setActiveDraftId(null);
+        refreshWorkspace();
+      } catch (error) {
+        setErrorMessage(error instanceof Error ? error.message : "Unable to snooze the draft.");
+      }
+    });
+  }
+
+  function handleUpdateDraft(draft: DraftView) {
+    if (!accessToken) {
+      return;
+    }
+
+    const editor = draftEditors[draft.id];
+    if (!editor) {
+      return;
+    }
+
+    setStatusMessage(null);
+    setErrorMessage(null);
+
+    startSubmitTransition(async () => {
+      try {
+        const response = await updateDraft(accessToken, draft.id, {
+          fieldValues: editor.fieldValues,
+          photoObjectId: editor.photoObjectId,
+          photoFit: editor.photoFit,
+        });
+        setStatusMessage(`Updated draft "${response.draft.headline}" and regenerated its preview.`);
+        refreshWorkspace();
+      } catch (error) {
+        setErrorMessage(error instanceof Error ? error.message : "Unable to update the draft.");
       }
     });
   }
@@ -491,33 +635,209 @@ export function MomentsClient() {
             {drafts.length === 0 ? (
               <AuthMessage tone="info">Drafts will appear here once a moment is saved.</AuthMessage>
             ) : (
-              drafts.map((draft) => (
-                <div
-                  key={draft.id}
-                  className="rounded-[var(--radius-md)] border border-border bg-surface px-4 py-4"
-                >
-                  <div className="flex flex-wrap items-center gap-2">
-                    <StatusPill tone={draft.status === "READY_FOR_REVIEW" ? "accent" : undefined}>
-                      {draft.status}
-                    </StatusPill>
-                    <span className="text-sm text-foreground/65">
-                      {draft.contact.firstName} {draft.contact.lastName}
-                    </span>
+              drafts.map((draft) => {
+                const editor = draftEditors[draft.id] ?? buildDraftEditorState(draft);
+                const isReviewable = draft.status === "READY_FOR_REVIEW";
+
+                return (
+                  <div
+                    key={draft.id}
+                    className="rounded-[var(--radius-md)] border border-border bg-surface px-4 py-4"
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <StatusPill tone={toneForDraftStatus(draft.status)}>
+                        {draft.status}
+                      </StatusPill>
+                      <span className="text-sm text-foreground/65">
+                        {draft.contact.firstName} {draft.contact.lastName}
+                      </span>
+                    </div>
+                    <p className="mt-3 text-base font-semibold text-foreground">{draft.headline}</p>
+                    <p className="mt-2 text-sm leading-7 text-foreground/72">{draft.message}</p>
+                    <p className="mt-3 text-sm leading-7 text-foreground/68">
+                      Ready at {formatDateTime(draft.draftReadyAt)} · Send date{" "}
+                      {formatDateTime(draft.scheduledFor)}
+                    </p>
+
+                    {isReviewable ? (
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          className="inline-flex min-h-10 items-center justify-center rounded-full bg-accent px-4 py-2 text-xs font-semibold tracking-[0.12em] text-white uppercase transition-colors hover:bg-accent-strong disabled:cursor-not-allowed disabled:bg-accent/45"
+                          disabled={isSubmitting}
+                          onClick={() => handleApproveDraft(draft.id)}
+                        >
+                          Approve
+                        </button>
+                        <button
+                          type="button"
+                          className="inline-flex min-h-10 items-center justify-center rounded-full border border-border bg-surface-muted px-4 py-2 text-xs font-semibold tracking-[0.12em] text-foreground uppercase transition-colors hover:bg-surface-strong disabled:cursor-not-allowed disabled:opacity-60"
+                          disabled={isSubmitting}
+                          onClick={() => handleSkipDraft(draft.id)}
+                        >
+                          Skip
+                        </button>
+                        <button
+                          type="button"
+                          className="inline-flex min-h-10 items-center justify-center rounded-full border border-border bg-surface-muted px-4 py-2 text-xs font-semibold tracking-[0.12em] text-foreground uppercase transition-colors hover:bg-surface-strong disabled:cursor-not-allowed disabled:opacity-60"
+                          disabled={isSubmitting}
+                          onClick={() =>
+                            activeDraftId === draft.id
+                              ? setActiveDraftId(null)
+                              : openDraftEditor(draft)
+                          }
+                        >
+                          {activeDraftId === draft.id ? "Close editor" : "Edit / snooze"}
+                        </button>
+                      </div>
+                    ) : null}
+
+                    {activeDraftId === draft.id && isReviewable ? (
+                      <div className="mt-5 space-y-4 rounded-[var(--radius-md)] border border-border bg-surface-muted px-4 py-4">
+                        <p className="text-xs font-semibold tracking-[0.14em] text-accent uppercase">
+                          Draft editor
+                        </p>
+                        <div className="grid gap-4">
+                          {Object.entries(editor.fieldValues).map(([key, value]) => (
+                            <label key={key} className="flex flex-col gap-2">
+                              <span className="text-xs font-semibold tracking-[0.14em] text-foreground/55 uppercase">
+                                {humanizeFieldKey(key)}
+                              </span>
+                              <textarea
+                                className="field-input min-h-24 resize-y"
+                                value={value}
+                                onChange={(event) =>
+                                  updateDraftEditor(draft.id, (current) => ({
+                                    ...current,
+                                    fieldValues: {
+                                      ...current.fieldValues,
+                                      [key]: event.target.value,
+                                    },
+                                  }))
+                                }
+                              />
+                            </label>
+                          ))}
+                        </div>
+
+                        <div className="grid gap-4 md:grid-cols-2">
+                          <label className="flex flex-col gap-2">
+                            <span className="text-xs font-semibold tracking-[0.14em] text-foreground/55 uppercase">
+                              Reuse stored photo
+                            </span>
+                            <select
+                              className="field-input"
+                              value={editor.photoObjectId ?? ""}
+                              onChange={(event) =>
+                                updateDraftEditor(draft.id, (current) => ({
+                                  ...current,
+                                  photoObjectId: event.target.value || null,
+                                }))
+                              }
+                            >
+                              <option value="">No photo selected</option>
+                              {uploads.map((upload) => (
+                                <option key={upload.id} value={upload.id}>
+                                  {upload.originalFilename ?? upload.id}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+
+                          <label className="flex flex-col gap-2">
+                            <span className="text-xs font-semibold tracking-[0.14em] text-foreground/55 uppercase">
+                              Photo fit
+                            </span>
+                            <select
+                              className="field-input"
+                              value={editor.photoFit ?? "FIT"}
+                              onChange={(event) =>
+                                updateDraftEditor(draft.id, (current) => ({
+                                  ...current,
+                                  photoFit: event.target.value as RenderPhotoFitValue,
+                                }))
+                              }
+                            >
+                              <option value="FIT">Fit</option>
+                              <option value="COVER">Cover</option>
+                            </select>
+                          </label>
+                        </div>
+
+                        <div className="grid gap-4 md:grid-cols-[1fr_auto_auto] md:items-end">
+                          <label className="flex flex-col gap-2">
+                            <span className="text-xs font-semibold tracking-[0.14em] text-foreground/55 uppercase">
+                              Snooze until
+                            </span>
+                            <input
+                              type="datetime-local"
+                              className="field-input"
+                              value={editor.snoozeAt}
+                              onChange={(event) =>
+                                updateDraftEditor(draft.id, (current) => ({
+                                  ...current,
+                                  snoozeAt: event.target.value,
+                                }))
+                              }
+                            />
+                          </label>
+
+                          <button
+                            type="button"
+                            className="inline-flex min-h-10 items-center justify-center rounded-full bg-accent px-4 py-2 text-xs font-semibold tracking-[0.12em] text-white uppercase transition-colors hover:bg-accent-strong disabled:cursor-not-allowed disabled:bg-accent/45"
+                            disabled={isSubmitting}
+                            onClick={() => handleUpdateDraft(draft)}
+                          >
+                            Save edit
+                          </button>
+
+                          <button
+                            type="button"
+                            className="inline-flex min-h-10 items-center justify-center rounded-full border border-border bg-surface px-4 py-2 text-xs font-semibold tracking-[0.12em] text-foreground uppercase transition-colors hover:bg-surface-strong disabled:cursor-not-allowed disabled:opacity-60"
+                            disabled={isSubmitting}
+                            onClick={() => handleSnoozeDraft(draft.id)}
+                          >
+                            Snooze
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
-                  <p className="mt-3 text-base font-semibold text-foreground">{draft.headline}</p>
-                  <p className="mt-2 text-sm leading-7 text-foreground/72">{draft.message}</p>
-                  <p className="mt-3 text-sm leading-7 text-foreground/68">
-                    Ready at {formatDateTime(draft.draftReadyAt)} · Send date{" "}
-                    {formatDateTime(draft.scheduledFor)}
-                  </p>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </PanelSurface>
       </div>
     </div>
   );
+}
+
+function buildDraftEditorState(draft: DraftView): DraftEditorState {
+  return {
+    fieldValues: { ...draft.fieldValues },
+    photoObjectId: draft.photoObjectId,
+    photoFit: draft.photoFit ?? "FIT",
+    snoozeAt: toDateTimeLocalValue(draft.draftReadyAt),
+  };
+}
+
+function toneForDraftStatus(status: DraftStatusValue): "accent" | "success" {
+  if (status === "READY_FOR_REVIEW" || status === "PROCESSING") {
+    return "accent";
+  }
+
+  return "success";
+}
+
+function humanizeFieldKey(value: string): string {
+  return value.replaceAll("_", " ");
+}
+
+function toDateTimeLocalValue(value: string): string {
+  const date = new Date(value);
+  const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return offsetDate.toISOString().slice(0, 16);
 }
 
 function formatDateTime(value: string | null): string {

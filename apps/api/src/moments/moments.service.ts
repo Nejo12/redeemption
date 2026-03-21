@@ -8,15 +8,19 @@ import { RenderingService } from '../rendering/rendering.service';
 import { StorageService } from '../storage/storage.service';
 import {
   CreateMomentRuleRequestBody,
+  DraftResponse,
   DraftMaterializationResponse,
   DraftListResponse,
   DraftView,
   MomentRuleListResponse,
   MomentRuleResponse,
   MomentRuleView,
+  SnoozeDraftRequestBody,
+  UpdateDraftRequestBody,
 } from './moments.contract';
 import { MomentsRepository } from './moments.repository';
 import {
+  DraftDecisionContext,
   DraftDueRecord,
   DraftRecord,
   MomentCreationContext,
@@ -155,6 +159,96 @@ export class MomentsService {
     return { deleted: true };
   }
 
+  async updateDraft(
+    userId: string,
+    draftId: string,
+    body: UpdateDraftRequestBody,
+  ): Promise<DraftResponse> {
+    const context = await this.momentsRepository.findDraftDecisionContext(
+      userId,
+      draftId,
+    );
+    if (!context) {
+      throw new NotFoundException('Draft not found.');
+    }
+
+    this.assertDraftReadyForReview(context.draft.status);
+
+    if (body.photoObjectId) {
+      await this.storageService.assertOwnedPhotoUpload(
+        userId,
+        body.photoObjectId,
+      );
+    }
+
+    const preview = await this.renderingService.createPreview(userId, {
+      templateSlug: context.template.slug,
+      fieldValues: body.fieldValues,
+      photoObjectId: body.photoObjectId,
+      photoFit: body.photoFit,
+    });
+
+    const updatedDraft = await this.momentsRepository.updateDraftForReview(
+      draftId,
+      {
+        headline: preview.preview.headline,
+        message: preview.preview.message,
+        fieldValues: preview.preview.fieldValues,
+        photoObjectId: preview.preview.photoObjectId,
+        photoFit: this.toRenderPhotoFit(preview.preview.photoFit),
+        renderPreviewId: preview.preview.id,
+      },
+    );
+
+    return {
+      draft: this.toDraftView(updatedDraft),
+    };
+  }
+
+  async approveDraft(userId: string, draftId: string): Promise<DraftResponse> {
+    return this.finalizeDraftDecision(userId, draftId, 'APPROVED');
+  }
+
+  async skipDraft(userId: string, draftId: string): Promise<DraftResponse> {
+    return this.finalizeDraftDecision(userId, draftId, 'SKIPPED');
+  }
+
+  async snoozeDraft(
+    userId: string,
+    draftId: string,
+    body: SnoozeDraftRequestBody,
+  ): Promise<DraftResponse> {
+    const context = await this.momentsRepository.findDraftDecisionContext(
+      userId,
+      draftId,
+    );
+    if (!context) {
+      throw new NotFoundException('Draft not found.');
+    }
+
+    this.assertDraftReadyForReview(context.draft.status);
+
+    const nextDraftReadyAt = new Date(body.draftReadyAt);
+    if (nextDraftReadyAt.getTime() <= Date.now()) {
+      throw new BadRequestException('draftReadyAt must be in the future.');
+    }
+
+    if (nextDraftReadyAt.getTime() >= context.draft.scheduledFor.getTime()) {
+      throw new BadRequestException(
+        'draftReadyAt must be earlier than the send date.',
+      );
+    }
+
+    const updatedDraft = await this.momentsRepository.snoozeDraft(
+      draftId,
+      nextDraftReadyAt,
+    );
+
+    return {
+      draft: this.toDraftView(updatedDraft),
+    };
+  }
+
   async materializeDueDrafts(
     limit = defaultDraftMaterializationBatchSize,
   ): Promise<DraftMaterializationResponse> {
@@ -198,6 +292,54 @@ export class MomentsService {
     };
   }
 
+  private async finalizeDraftDecision(
+    userId: string,
+    draftId: string,
+    finalStatus: 'APPROVED' | 'SKIPPED',
+  ): Promise<DraftResponse> {
+    const context = await this.momentsRepository.findDraftDecisionContext(
+      userId,
+      draftId,
+    );
+    if (!context) {
+      throw new NotFoundException('Draft not found.');
+    }
+
+    this.assertDraftReadyForReview(context.draft.status);
+
+    const nextOccurrenceAt = this.computeFollowingOccurrenceDate(context);
+    const nextDraftAt = nextOccurrenceAt
+      ? new Date(
+          nextOccurrenceAt.getTime() -
+            context.momentRule.leadTimeDays * dayInMilliseconds,
+        )
+      : null;
+
+    await this.momentsRepository.finalizeDraftDecision({
+      draftId,
+      finalStatus,
+      momentRuleId: context.momentRule.id,
+      nextOccurrenceAt,
+      nextDraftAt,
+      nextDraft:
+        nextOccurrenceAt && nextDraftAt
+          ? this.buildNextScheduledDraft(context, nextOccurrenceAt, nextDraftAt)
+          : null,
+    });
+
+    const finalizedDraft = await this.momentsRepository.findDraftByUserId(
+      userId,
+      draftId,
+    );
+    if (!finalizedDraft) {
+      throw new NotFoundException('Updated draft could not be reloaded.');
+    }
+
+    return {
+      draft: this.toDraftView(finalizedDraft),
+    };
+  }
+
   private async materializeDraft(draft: DraftDueRecord): Promise<void> {
     const preview = await this.renderingService.createPreview(draft.userId, {
       templateSlug: draft.template.slug,
@@ -210,6 +352,110 @@ export class MomentsService {
       draft.id,
       preview.preview.id,
     );
+  }
+
+  private assertDraftReadyForReview(status: DraftRecord['status']): void {
+    if (status !== 'READY_FOR_REVIEW') {
+      throw new BadRequestException(
+        'Only drafts waiting for review can be updated.',
+      );
+    }
+  }
+
+  private computeFollowingOccurrenceDate(
+    context: DraftDecisionContext,
+  ): Date | null {
+    if (context.momentRule.eventType === 'ONE_OFF_DATE') {
+      return null;
+    }
+
+    const birthday = context.contact.birthday;
+    if (!birthday) {
+      throw new BadRequestException(
+        'Selected contact does not have a birthday saved.',
+      );
+    }
+
+    return this.computeNextBirthdayAfter(
+      birthday,
+      context.draft.occurrenceDate,
+    );
+  }
+
+  private computeNextBirthdayAfter(birthday: Date, afterDate: Date): Date {
+    const nextDay = new Date(afterDate.getTime() + dayInMilliseconds);
+    const nextDayStart = new Date(
+      Date.UTC(
+        nextDay.getUTCFullYear(),
+        nextDay.getUTCMonth(),
+        nextDay.getUTCDate(),
+      ),
+    );
+    const candidate = new Date(
+      Date.UTC(
+        nextDayStart.getUTCFullYear(),
+        birthday.getUTCMonth(),
+        birthday.getUTCDate(),
+      ),
+    );
+
+    if (candidate.getTime() >= nextDayStart.getTime()) {
+      return candidate;
+    }
+
+    return new Date(
+      Date.UTC(
+        nextDayStart.getUTCFullYear() + 1,
+        birthday.getUTCMonth(),
+        birthday.getUTCDate(),
+      ),
+    );
+  }
+
+  private buildNextScheduledDraft(
+    context: DraftDecisionContext,
+    occurrenceDate: Date,
+    draftReadyAt: Date,
+  ) {
+    const personalizedMessage = this.interpolateMessageTemplate(
+      {
+        user: context.user,
+        contact: context.contact,
+        template: context.template,
+      },
+      context.momentRule.messageTemplate,
+      context.momentRule.eventType,
+    );
+    const fieldValues = this.buildDraftFieldValues(
+      {
+        user: context.user,
+        contact: context.contact,
+        template: context.template,
+      },
+      personalizedMessage,
+    );
+    const textField = context.template.fields.find(
+      (field) => field.kind === 'TEXT',
+    );
+
+    return {
+      userId: context.user.id,
+      momentRuleId: context.momentRule.id,
+      contactId: context.contact.id,
+      templateId: context.template.id,
+      photoObjectId: context.momentRule.photoObjectId,
+      status: 'SCHEDULED' as const,
+      scheduledFor: occurrenceDate,
+      draftReadyAt,
+      occurrenceDate,
+      headline: textField
+        ? (fieldValues[textField.key] ?? context.contact.firstName)
+        : context.contact.firstName,
+      message: personalizedMessage,
+      fieldValues,
+      photoFit: context.draft.photoFit,
+      renderPreviewId: null,
+    };
   }
 
   private computeNextOccurrenceDate(

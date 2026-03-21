@@ -126,3 +126,37 @@ export interface DraftDueRecord {
   momentRuleId: string;
   template: MomentTemplateSummaryRecord;
 }
+
+export interface DraftDecisionContext {
+  user: {
+    id: string;
+    displayName: string | null;
+    profile: {
+      fullName: string | null;
+    } | null;
+  };
+  contact: MomentContactSummaryRecord;
+  template: {
+    id: string;
+    slug: string;
+    name: string;
+    fields: Array<{
+      key: string;
+      label: string;
+      kind: 'TEXT' | 'TEXTAREA' | 'PHOTO';
+      required: boolean;
+      maxLength: number | null;
+      position: number;
+    }>;
+  };
+  momentRule: {
+    id: string;
+    eventType: MomentEventType;
+    leadTimeDays: number;
+    deliveryPreference: MomentDeliveryPreference;
+    approvalMode: MomentApprovalMode;
+    messageTemplate: string;
+    photoObjectId: string | null;
+  };
+  draft: DraftRecord;
+}

@@ -8,6 +8,8 @@ import {
   MomentDeliveryPreferenceValue,
   MomentEventTypeValue,
   RenderPhotoFitValue,
+  SnoozeDraftRequestBody,
+  UpdateDraftRequestBody,
 } from './moments.contract';
 
 const eventTypes: ReadonlySet<MomentEventTypeValue> = new Set([
@@ -145,5 +147,62 @@ export function parseCreateMomentRuleBody(
     ),
     photoObjectId: parseNullableId(body.photoObjectId, 'photoObjectId'),
     photoFit: parsePhotoFit(body.photoFit),
+  };
+}
+
+function parseFieldValues(value: unknown): Record<string, string> {
+  if (!isRecord(value)) {
+    throw new UnprocessableEntityException(
+      'fieldValues must be an object keyed by template field ids.',
+    );
+  }
+
+  const fieldValues: Record<string, string> = {};
+
+  for (const [key, fieldValue] of Object.entries(value)) {
+    if (typeof fieldValue !== 'string') {
+      throw new UnprocessableEntityException(
+        `Field "${key}" must be sent as a string value.`,
+      );
+    }
+
+    fieldValues[key] = fieldValue;
+  }
+
+  return fieldValues;
+}
+
+function parseIsoDateTime(value: unknown, fieldName: string): string {
+  const parsedValue = parseStringField(value, fieldName);
+  const parsedDate = Date.parse(parsedValue);
+
+  if (Number.isNaN(parsedDate)) {
+    throw new UnprocessableEntityException(
+      `${fieldName} must be a valid ISO date-time string.`,
+    );
+  }
+
+  return new Date(parsedDate).toISOString();
+}
+
+export function parseUpdateDraftBody(body: unknown): UpdateDraftRequestBody {
+  if (!isRecord(body)) {
+    throw new BadRequestException('Draft update payload must be an object.');
+  }
+
+  return {
+    fieldValues: parseFieldValues(body.fieldValues),
+    photoObjectId: parseNullableId(body.photoObjectId, 'photoObjectId'),
+    photoFit: parsePhotoFit(body.photoFit),
+  };
+}
+
+export function parseSnoozeDraftBody(body: unknown): SnoozeDraftRequestBody {
+  if (!isRecord(body)) {
+    throw new BadRequestException('Draft snooze payload must be an object.');
+  }
+
+  return {
+    draftReadyAt: parseIsoDateTime(body.draftReadyAt, 'draftReadyAt'),
   };
 }

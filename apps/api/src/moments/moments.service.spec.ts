@@ -7,9 +7,64 @@ import { MomentCreationContext } from './moments.types';
 
 class MomentsRepositoryFake {
   createdDraftStatus: string | null = null;
+  finalizedDecision: {
+    finalStatus: 'APPROVED' | 'SKIPPED';
+    nextOccurrenceAt: Date | null;
+    nextDraftAt: Date | null;
+    nextDraft: unknown;
+  } | null = null;
+  snoozedDraftReadyAt: Date | null = null;
+  updatedDraftPayload: {
+    headline: string;
+    message: string;
+    fieldValues: Record<string, string>;
+    photoObjectId: string | null;
+    photoFit: 'FIT' | 'COVER' | null;
+    renderPreviewId: string;
+  } | null = null;
 
-  findMomentCreationContext(): Promise<MomentCreationContext | null> {
-    return Promise.resolve({
+  private buildDraft(
+    status:
+      | 'SCHEDULED'
+      | 'PROCESSING'
+      | 'READY_FOR_REVIEW'
+      | 'APPROVED'
+      | 'SKIPPED' = 'READY_FOR_REVIEW',
+  ) {
+    return {
+      id: 'draft_1',
+      momentRuleId: 'moment_1',
+      status,
+      scheduledFor: new Date('2099-04-16T00:00:00.000Z'),
+      draftReadyAt: new Date('2099-04-09T00:00:00.000Z'),
+      occurrenceDate: new Date('2099-04-16T00:00:00.000Z'),
+      headline: 'Mira Cole',
+      message: 'Happy birthday, Mira. From Olaniyi A..',
+      fieldValues: {
+        recipient_name: 'Mira Cole',
+        message_body: 'Happy birthday, Mira. From Olaniyi A..',
+      },
+      photoObjectId: null,
+      photoFit: null,
+      renderPreviewId: 'preview_1',
+      createdAt: new Date('2026-03-21T00:00:00.000Z'),
+      updatedAt: new Date('2026-03-21T00:00:00.000Z'),
+      contact: {
+        id: 'contact_1',
+        firstName: 'Mira',
+        lastName: 'Cole',
+        birthday: new Date('1992-04-16T00:00:00.000Z'),
+      },
+      template: {
+        id: 'template_1',
+        slug: 'birthday-bloom',
+        name: 'Birthday Bloom',
+      },
+    };
+  }
+
+  private buildMomentCreationContext(): MomentCreationContext {
+    return {
       user: {
         id: 'user_1',
         displayName: 'Olaniyi',
@@ -54,7 +109,38 @@ class MomentsRepositoryFake {
           },
         ],
       },
-    });
+    };
+  }
+
+  private buildDraftDecisionContext(): MomentCreationContext & {
+    momentRule: {
+      id: string;
+      eventType: 'CONTACT_BIRTHDAY';
+      leadTimeDays: number;
+      deliveryPreference: 'ARRIVE_BY';
+      approvalMode: 'ALWAYS_ASK';
+      messageTemplate: string;
+      photoObjectId: string | null;
+    };
+    draft: ReturnType<MomentsRepositoryFake['buildDraft']>;
+  } {
+    return {
+      ...this.buildMomentCreationContext(),
+      momentRule: {
+        id: 'moment_1',
+        eventType: 'CONTACT_BIRTHDAY',
+        leadTimeDays: 7,
+        deliveryPreference: 'ARRIVE_BY',
+        approvalMode: 'ALWAYS_ASK',
+        messageTemplate: 'Happy {occasion}, {first_name}. From {sender_name}.',
+        photoObjectId: null,
+      },
+      draft: this.buildDraft(),
+    };
+  }
+
+  findMomentCreationContext(): Promise<MomentCreationContext | null> {
+    return Promise.resolve(this.buildMomentCreationContext());
   }
 
   createMomentRule() {
@@ -90,34 +176,8 @@ class MomentsRepositoryFake {
   createDraft(params: { status: string }) {
     this.createdDraftStatus = params.status;
     return Promise.resolve({
-      id: 'draft_1',
-      momentRuleId: 'moment_1',
-      status: params.status as 'SCHEDULED' | 'READY_FOR_REVIEW',
-      scheduledFor: new Date('2099-04-16T00:00:00.000Z'),
-      draftReadyAt: new Date('2099-04-09T00:00:00.000Z'),
-      occurrenceDate: new Date('2099-04-16T00:00:00.000Z'),
-      headline: 'Mira Cole',
-      message: 'Happy birthday, Mira. From Olaniyi A..',
-      fieldValues: {
-        recipient_name: 'Mira Cole',
-        message_body: 'Happy birthday, Mira. From Olaniyi A..',
-      },
-      photoObjectId: null,
-      photoFit: null,
+      ...this.buildDraft(params.status as 'SCHEDULED' | 'READY_FOR_REVIEW'),
       renderPreviewId: null,
-      createdAt: new Date('2026-03-21T00:00:00.000Z'),
-      updatedAt: new Date('2026-03-21T00:00:00.000Z'),
-      contact: {
-        id: 'contact_1',
-        firstName: 'Mira',
-        lastName: 'Cole',
-        birthday: new Date('1992-04-16T00:00:00.000Z'),
-      },
-      template: {
-        id: 'template_1',
-        slug: 'birthday-bloom',
-        name: 'Birthday Bloom',
-      },
     });
   }
 
@@ -150,34 +210,8 @@ class MomentsRepositoryFake {
         },
         drafts: [
           {
-            id: 'draft_1',
-            momentRuleId: 'moment_1',
-            status: 'SCHEDULED' as const,
-            scheduledFor: new Date('2099-04-16T00:00:00.000Z'),
-            draftReadyAt: new Date('2099-04-09T00:00:00.000Z'),
-            occurrenceDate: new Date('2099-04-16T00:00:00.000Z'),
-            headline: 'Mira Cole',
-            message: 'Happy birthday, Mira. From Olaniyi A..',
-            fieldValues: {
-              recipient_name: 'Mira Cole',
-              message_body: 'Happy birthday, Mira. From Olaniyi A..',
-            },
-            photoObjectId: null,
-            photoFit: null,
+            ...this.buildDraft('SCHEDULED'),
             renderPreviewId: null,
-            createdAt: new Date('2026-03-21T00:00:00.000Z'),
-            updatedAt: new Date('2026-03-21T00:00:00.000Z'),
-            contact: {
-              id: 'contact_1',
-              firstName: 'Mira',
-              lastName: 'Cole',
-              birthday: new Date('1992-04-16T00:00:00.000Z'),
-            },
-            template: {
-              id: 'template_1',
-              slug: 'birthday-bloom',
-              name: 'Birthday Bloom',
-            },
           },
         ],
       },
@@ -192,7 +226,61 @@ class MomentsRepositoryFake {
     return Promise.resolve([]);
   }
 
+  findDraftDecisionContext() {
+    return Promise.resolve(this.buildDraftDecisionContext());
+  }
+
+  findDraftByUserId() {
+    return Promise.resolve(this.buildDraft('APPROVED'));
+  }
+
   updateDraftAsReadyForReview() {
+    return Promise.resolve();
+  }
+
+  updateDraftForReview(
+    draftId: string,
+    params: {
+      headline: string;
+      message: string;
+      fieldValues: Record<string, string>;
+      photoObjectId: string | null;
+      photoFit: 'FIT' | 'COVER' | null;
+      renderPreviewId: string;
+    },
+  ) {
+    void draftId;
+    this.updatedDraftPayload = params;
+
+    return Promise.resolve({
+      ...this.buildDraft('READY_FOR_REVIEW'),
+      headline: params.headline,
+      message: params.message,
+      fieldValues: params.fieldValues,
+      photoObjectId: params.photoObjectId,
+      photoFit: params.photoFit,
+      renderPreviewId: params.renderPreviewId,
+    });
+  }
+
+  snoozeDraft(draftId: string, draftReadyAt: Date) {
+    void draftId;
+    this.snoozedDraftReadyAt = draftReadyAt;
+
+    return Promise.resolve({
+      ...this.buildDraft('SCHEDULED'),
+      draftReadyAt,
+      renderPreviewId: null,
+    });
+  }
+
+  finalizeDraftDecision(params: {
+    finalStatus: 'APPROVED' | 'SKIPPED';
+    nextOccurrenceAt: Date | null;
+    nextDraftAt: Date | null;
+    nextDraft: unknown;
+  }) {
+    this.finalizedDecision = params;
     return Promise.resolve();
   }
 
@@ -214,6 +302,14 @@ class RenderingServiceFake {
     return Promise.resolve({
       preview: {
         id: 'preview_1',
+        headline: 'Updated headline',
+        message: 'Updated message body',
+        fieldValues: {
+          recipient_name: 'Updated headline',
+          message_body: 'Updated message body',
+        },
+        photoObjectId: 'photo_1',
+        photoFit: 'FIT' as const,
       },
     });
   }
@@ -327,5 +423,41 @@ describe('MomentsService', () => {
         photoFit: null,
       }),
     ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('updates a review-ready draft and regenerates its preview', async () => {
+    const response = await service.updateDraft('user_1', 'draft_1', {
+      fieldValues: {
+        recipient_name: 'Updated headline',
+        message_body: 'Updated message body',
+      },
+      photoObjectId: 'photo_1',
+      photoFit: 'FIT',
+    });
+
+    expect(repository.updatedDraftPayload?.renderPreviewId).toBe('preview_1');
+    expect(response.draft.headline).toBe('Updated headline');
+    expect(response.draft.photoObjectId).toBe('photo_1');
+  });
+
+  it('approves a review-ready draft and schedules the next occurrence', async () => {
+    const response = await service.approveDraft('user_1', 'draft_1');
+
+    expect(repository.finalizedDecision?.finalStatus).toBe('APPROVED');
+    expect(repository.finalizedDecision?.nextOccurrenceAt?.toISOString()).toBe(
+      '2100-04-16T00:00:00.000Z',
+    );
+    expect(repository.finalizedDecision?.nextDraftAt?.toISOString()).toBe(
+      '2100-04-09T00:00:00.000Z',
+    );
+    expect(response.draft.status).toBe('APPROVED');
+  });
+
+  it('rejects snooze requests that move the draft to or past the send date', async () => {
+    await expect(
+      service.snoozeDraft('user_1', 'draft_1', {
+        draftReadyAt: '2099-04-16T00:00:00.000Z',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 });

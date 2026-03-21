@@ -1,9 +1,12 @@
 import { requestJson } from "@/lib/api-client";
 import {
   CreateMomentRuleRequestBody,
+  DraftResponse,
   DraftListResponse,
   MomentRuleListResponse,
   MomentRuleResponse,
+  SnoozeDraftRequestBody,
+  UpdateDraftRequestBody,
 } from "@/lib/moments-contract";
 
 export function listMoments(accessToken: string): Promise<MomentRuleListResponse> {
@@ -46,5 +49,51 @@ export function deleteMomentRule(
     headers: {
       Authorization: `Bearer ${accessToken}`,
     },
+  });
+}
+
+export function updateDraft(
+  accessToken: string,
+  draftId: string,
+  payload: UpdateDraftRequestBody,
+): Promise<DraftResponse> {
+  return requestJson<DraftResponse>(`/drafts/${draftId}`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function approveDraft(accessToken: string, draftId: string): Promise<DraftResponse> {
+  return requestJson<DraftResponse>(`/drafts/${draftId}/approve`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+}
+
+export function skipDraft(accessToken: string, draftId: string): Promise<DraftResponse> {
+  return requestJson<DraftResponse>(`/drafts/${draftId}/skip`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+}
+
+export function snoozeDraft(
+  accessToken: string,
+  draftId: string,
+  payload: SnoozeDraftRequestBody,
+): Promise<DraftResponse> {
+  return requestJson<DraftResponse>(`/drafts/${draftId}/snooze`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify(payload),
   });
 }
