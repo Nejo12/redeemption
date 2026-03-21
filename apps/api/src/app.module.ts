@@ -7,6 +7,7 @@ import { ContactsModule } from './contacts/contacts.module';
 import { DatabaseModule } from './database/database.module';
 import { MomentsModule } from './moments/moments.module';
 import { OrdersModule } from './orders/orders.module';
+import { PricingModule } from './pricing/pricing.module';
 import { RenderingModule } from './rendering/rendering.module';
 import { SenderProfileModule } from './sender-profile/sender-profile.module';
 import { StorageModule } from './storage/storage.module';
@@ -21,6 +22,7 @@ import { TemplatesModule } from './templates/templates.module';
     AddressesModule,
     MomentsModule,
     OrdersModule,
+    PricingModule,
     StorageModule,
     TemplatesModule,
     RenderingModule,

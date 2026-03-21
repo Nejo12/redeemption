@@ -29,6 +29,8 @@ import {
 } from "@/lib/moments-contract";
 import { createOrderFromDraft, listOrders } from "@/lib/orders-api";
 import { OrderView } from "@/lib/orders-contract";
+import { getOrderPricing } from "@/lib/pricing-api";
+import { OrderPricingView, ShippingTypeValue } from "@/lib/pricing-contract";
 import { listPhotoUploads, uploadPhoto } from "@/lib/storage-api";
 import { StoredObjectView } from "@/lib/storage-contract";
 import { listTemplates } from "@/lib/templates-api";
@@ -68,6 +70,8 @@ export function MomentsClient() {
   const [moments, setMoments] = useState<MomentRuleView[]>([]);
   const [drafts, setDrafts] = useState<DraftView[]>([]);
   const [orders, setOrders] = useState<OrderView[]>([]);
+  const [pricingQuotes, setPricingQuotes] = useState<Record<string, OrderPricingView>>({});
+  const [shippingTypes, setShippingTypes] = useState<Record<string, ShippingTypeValue>>({});
   const [uploads, setUploads] = useState<StoredObjectView[]>([]);
   const [draftEditors, setDraftEditors] = useState<Record<string, DraftEditorState>>({});
   const [activeDraftId, setActiveDraftId] = useState<string | null>(null);
@@ -201,6 +205,13 @@ export function MomentsClient() {
       setOrders(ordersResponse.orders);
       setUploads(uploadsResponse.objects.slice(0, 6));
     });
+  }
+
+  function updateShippingType(orderId: string, shippingType: ShippingTypeValue) {
+    setShippingTypes((current) => ({
+      ...current,
+      [orderId]: shippingType,
+    }));
   }
 
   function handleCreateMoment() {
@@ -371,6 +382,34 @@ export function MomentsClient() {
         refreshWorkspace();
       } catch (error) {
         setErrorMessage(error instanceof Error ? error.message : "Unable to create the order.");
+      }
+    });
+  }
+
+  function handleLoadPricing(orderId: string) {
+    if (!accessToken) {
+      return;
+    }
+
+    const shippingType = shippingTypes[orderId] ?? "STANDARD";
+
+    setStatusMessage(null);
+    setErrorMessage(null);
+
+    startSubmitTransition(async () => {
+      try {
+        const response = await getOrderPricing(accessToken, orderId, shippingType);
+        setPricingQuotes((current) => ({
+          ...current,
+          [orderId]: response.pricing,
+        }));
+        setStatusMessage(
+          `Calculated ${formatMoney(response.pricing.totalCents, response.pricing.currency)} total for order ${orderId}.`,
+        );
+      } catch (error) {
+        setErrorMessage(
+          error instanceof Error ? error.message : "Unable to calculate order pricing.",
+        );
       }
     });
   }
@@ -666,6 +705,10 @@ export function MomentsClient() {
                 const editor = draftEditors[draft.id] ?? buildDraftEditorState(draft);
                 const isReviewable = draft.status === "READY_FOR_REVIEW";
                 const relatedOrder = orders.find((order) => order.draftId === draft.id);
+                const selectedShippingType = relatedOrder
+                  ? (shippingTypes[relatedOrder.id] ?? "STANDARD")
+                  : "STANDARD";
+                const pricingQuote = relatedOrder ? (pricingQuotes[relatedOrder.id] ?? null) : null;
 
                 return (
                   <div
@@ -687,9 +730,71 @@ export function MomentsClient() {
                       {formatDateTime(draft.scheduledFor)}
                     </p>
                     {relatedOrder ? (
-                      <p className="mt-2 text-sm leading-7 text-foreground/68">
-                        Order {relatedOrder.id} · {relatedOrder.status}
-                      </p>
+                      <div className="mt-2 space-y-3">
+                        <p className="text-sm leading-7 text-foreground/68">
+                          Order {relatedOrder.id} · {relatedOrder.status}
+                        </p>
+
+                        {relatedOrder.status === "AWAITING_PAYMENT" ||
+                        relatedOrder.status === "PAYMENT_FAILED" ? (
+                          <div className="space-y-3 rounded-[var(--radius-md)] border border-border bg-surface-muted px-4 py-4">
+                            <div className="flex flex-wrap items-center gap-3">
+                              <label className="flex flex-col gap-2">
+                                <span className="text-xs font-semibold tracking-[0.14em] text-foreground/55 uppercase">
+                                  Shipping
+                                </span>
+                                <select
+                                  className="field-input min-w-44"
+                                  value={selectedShippingType}
+                                  onChange={(event) =>
+                                    updateShippingType(
+                                      relatedOrder.id,
+                                      event.target.value as ShippingTypeValue,
+                                    )
+                                  }
+                                >
+                                  <option value="STANDARD">Standard</option>
+                                  <option value="PRIORITY">Priority</option>
+                                </select>
+                              </label>
+
+                              <button
+                                type="button"
+                                className="inline-flex min-h-10 items-center justify-center rounded-full border border-border bg-surface px-4 py-2 text-xs font-semibold tracking-[0.12em] text-foreground uppercase transition-colors hover:bg-surface-strong disabled:cursor-not-allowed disabled:opacity-60"
+                                disabled={isSubmitting}
+                                onClick={() => handleLoadPricing(relatedOrder.id)}
+                              >
+                                {pricingQuote ? "Refresh pricing" : "Estimate total"}
+                              </button>
+                            </div>
+
+                            {pricingQuote ? (
+                              <div className="space-y-2 text-sm leading-7 text-foreground/72">
+                                <p>
+                                  Subtotal{" "}
+                                  {formatMoney(pricingQuote.subtotalCents, pricingQuote.currency)}
+                                  {" · "}Tax{" "}
+                                  {formatMoney(pricingQuote.taxCents, pricingQuote.currency)}
+                                  {" · "}Total{" "}
+                                  {formatMoney(pricingQuote.totalCents, pricingQuote.currency)}
+                                </p>
+                                <p>
+                                  {pricingQuote.format} · {pricingQuote.shippingZone.toLowerCase()}{" "}
+                                  shipping to {pricingQuote.destinationCountryCode}
+                                </p>
+                                <div className="space-y-1">
+                                  {pricingQuote.lineItems.map((lineItem) => (
+                                    <p key={lineItem.code}>
+                                      {lineItem.label}:{" "}
+                                      {formatMoney(lineItem.amountCents, pricingQuote.currency)}
+                                    </p>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : null}
+                          </div>
+                        ) : null}
+                      </div>
                     ) : null}
 
                     {isReviewable ? (
@@ -892,4 +997,11 @@ function formatDateTime(value: string | null): string {
   }
 
   return new Date(value).toLocaleString();
+}
+
+function formatMoney(amountCents: number, currency: string): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency,
+  }).format(amountCents / 100);
 }
