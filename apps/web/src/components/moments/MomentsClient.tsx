@@ -27,6 +27,8 @@ import {
   MomentRuleView,
   RenderPhotoFitValue,
 } from "@/lib/moments-contract";
+import { createOrderFromDraft, listOrders } from "@/lib/orders-api";
+import { OrderView } from "@/lib/orders-contract";
 import { listPhotoUploads, uploadPhoto } from "@/lib/storage-api";
 import { StoredObjectView } from "@/lib/storage-contract";
 import { listTemplates } from "@/lib/templates-api";
@@ -65,6 +67,7 @@ export function MomentsClient() {
   const [templates, setTemplates] = useState<TemplateView[]>([]);
   const [moments, setMoments] = useState<MomentRuleView[]>([]);
   const [drafts, setDrafts] = useState<DraftView[]>([]);
+  const [orders, setOrders] = useState<OrderView[]>([]);
   const [uploads, setUploads] = useState<StoredObjectView[]>([]);
   const [draftEditors, setDraftEditors] = useState<Record<string, DraftEditorState>>({});
   const [activeDraftId, setActiveDraftId] = useState<string | null>(null);
@@ -84,12 +87,14 @@ export function MomentsClient() {
           templatesResponse,
           momentsResponse,
           draftsResponse,
+          ordersResponse,
           uploadsResponse,
         ] = await Promise.all([
           listContacts(accessToken, ""),
           listTemplates("", ""),
           listMoments(accessToken),
           listDrafts(accessToken),
+          listOrders(accessToken),
           listPhotoUploads(accessToken),
         ]);
 
@@ -97,6 +102,7 @@ export function MomentsClient() {
         setTemplates(templatesResponse.templates);
         setMoments(momentsResponse.moments);
         setDrafts(draftsResponse.drafts);
+        setOrders(ordersResponse.orders);
         setUploads(uploadsResponse.objects.slice(0, 6));
         setForm((current) => ({
           ...current,
@@ -184,13 +190,15 @@ export function MomentsClient() {
     }
 
     startTransition(async () => {
-      const [momentsResponse, draftsResponse, uploadsResponse] = await Promise.all([
+      const [momentsResponse, draftsResponse, ordersResponse, uploadsResponse] = await Promise.all([
         listMoments(accessToken),
         listDrafts(accessToken),
+        listOrders(accessToken),
         listPhotoUploads(accessToken),
       ]);
       setMoments(momentsResponse.moments);
       setDrafts(draftsResponse.drafts);
+      setOrders(ordersResponse.orders);
       setUploads(uploadsResponse.objects.slice(0, 6));
     });
   }
@@ -344,6 +352,25 @@ export function MomentsClient() {
         refreshWorkspace();
       } catch (error) {
         setErrorMessage(error instanceof Error ? error.message : "Unable to update the draft.");
+      }
+    });
+  }
+
+  function handleCreateOrder(draftId: string) {
+    if (!accessToken) {
+      return;
+    }
+
+    setStatusMessage(null);
+    setErrorMessage(null);
+
+    startSubmitTransition(async () => {
+      try {
+        const response = await createOrderFromDraft(accessToken, draftId);
+        setStatusMessage(`Created order ${response.order.id} for "${response.order.headline}".`);
+        refreshWorkspace();
+      } catch (error) {
+        setErrorMessage(error instanceof Error ? error.message : "Unable to create the order.");
       }
     });
   }
@@ -638,6 +665,7 @@ export function MomentsClient() {
               drafts.map((draft) => {
                 const editor = draftEditors[draft.id] ?? buildDraftEditorState(draft);
                 const isReviewable = draft.status === "READY_FOR_REVIEW";
+                const relatedOrder = orders.find((order) => order.draftId === draft.id);
 
                 return (
                   <div
@@ -658,6 +686,11 @@ export function MomentsClient() {
                       Ready at {formatDateTime(draft.draftReadyAt)} · Send date{" "}
                       {formatDateTime(draft.scheduledFor)}
                     </p>
+                    {relatedOrder ? (
+                      <p className="mt-2 text-sm leading-7 text-foreground/68">
+                        Order {relatedOrder.id} · {relatedOrder.status}
+                      </p>
+                    ) : null}
 
                     {isReviewable ? (
                       <div className="mt-4 flex flex-wrap gap-2">
@@ -688,6 +721,19 @@ export function MomentsClient() {
                           }
                         >
                           {activeDraftId === draft.id ? "Close editor" : "Edit / snooze"}
+                        </button>
+                      </div>
+                    ) : null}
+
+                    {draft.status === "APPROVED" && !relatedOrder ? (
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          className="inline-flex min-h-10 items-center justify-center rounded-full bg-accent px-4 py-2 text-xs font-semibold tracking-[0.12em] text-white uppercase transition-colors hover:bg-accent-strong disabled:cursor-not-allowed disabled:bg-accent/45"
+                          disabled={isSubmitting}
+                          onClick={() => handleCreateOrder(draft.id)}
+                        >
+                          Create order
                         </button>
                       </div>
                     ) : null}
